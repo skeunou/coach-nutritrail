@@ -240,6 +240,15 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <input type="number" id="fHydrat" value="20" min="10" max="60">
     </div>
     <div class="form-group">
+      <label>Glucides / heure</label>
+      <div class="radio-group" id="rCarbsMode">
+        <span class="radio-opt sel" onclick="setCarbsMode('auto')" data-val="auto">🤖 Auto</span>
+        <span class="radio-opt" onclick="setCarbsMode('manuel')" data-val="manuel">✏️ Manuel</span>
+      </div>
+      <input type="number" id="fCarbsH" value="75" min="30" max="120" style="display:none;margin-top:6px">
+      <div class="hint" id="carbsHint">Calculé selon durée et niveau (30-90 g/h)</div>
+    </div>
+    <div class="form-group">
       <label>Tolérance digestive</label>
       <div class="radio-group" id="rDigest">
         <span class="radio-opt" onclick="selectRadio('rDigest',this,'faible')">Faible</span>
@@ -413,6 +422,21 @@ function selectRadio(groupId, el, val) {
 function getRadio(groupId) {
   const el = document.querySelector('#' + groupId + ' .radio-opt.sel');
   return el ? (el.getAttribute('data-val') || el.textContent.trim().toLowerCase()) : '';
+}
+
+function setCarbsMode(mode) {
+  document.querySelectorAll('#rCarbsMode .radio-opt').forEach(o => {
+    o.classList.toggle('sel', o.getAttribute('data-val') === mode);
+  });
+  const input = document.getElementById('fCarbsH');
+  const hint = document.getElementById('carbsHint');
+  if (mode === 'manuel') {
+    input.style.display = 'block';
+    hint.textContent = 'Valeur fixée manuellement (g/h)';
+  } else {
+    input.style.display = 'none';
+    hint.textContent = 'Calculé selon durée et niveau (30-90 g/h)';
+  }
 }
 
 function parseTps(str) {
@@ -672,21 +696,6 @@ function buildNutritionPlan(course, cfg) {
   const electros = sel.filter(p => p.type === 'electro');
   const caffGel = sel.find(p => p.caf > 0);
 
-  // Choisit le meilleur produit "solide/gel" pour atteindre ~targetCarbs (g)
-  function pickSolid(targetCarbs, preferCaffeine) {
-    if (preferCaffeine && caffGel) {
-      const n = Math.max(1, Math.round(targetCarbs / caffGel.carbs));
-      return { p: caffGel, n };
-    }
-    if (!gels.length) return null;
-    let best = gels[0], bestN = 1, bestErr = Infinity;
-    gels.forEach(p => {
-      const n = Math.max(1, Math.round(targetCarbs / p.carbs));
-      const err = Math.abs(n * p.carbs - targetCarbs);
-      if (err < bestErr) { bestErr = err; best = p; bestN = n; }
-    });
-    return { p: best, n: bestN };
-  }
   function pickDrink() { return drinks[0] || null; }
   function pickElectro() { return electros[0] || null; }
 
@@ -698,8 +707,19 @@ function buildNutritionPlan(course, cfg) {
 
   // Générer des événements nutritionnels
   const events = [];
-  const intervalMins = cfg.hydratMins;
-  let nextEvent = 10; // premiers 10 min = départ
+
+  // ----- ESPACEMENT DES APPORTS PILOTÉ PAR LE BUDGET GLUCIDIQUE -----
+  // On vise carbsH g/h. La plus petite "unité" glucidique disponible définit
+  // la granularité. Ex : gel 30g + cible 75 g/h => 1 unité toutes les
+  // (30 / 75) * 60 = 24 min. On borne entre 15 et 45 min pour rester réaliste.
+  const baseUnitCarbs = gels.length ? Math.min(...gels.map(g => g.carbs))
+                       : (drinks.length ? 30 : 25); // défaut générique
+  let fuelInterval = Math.round((baseUnitCarbs / carbsH) * 60);
+  fuelInterval = Math.max(15, Math.min(45, fuelInterval));
+  // Aligner sur l'intervalle d'hydratation si proche (confort de lecture)
+  const intervalMins = fuelInterval;
+
+  let nextEvent = 15; // premier apport à ~15 min
   let eventIdx = 0;
 
   function pointAtTime(targetMins) {
@@ -708,6 +728,29 @@ function buildNutritionPlan(course, cfg) {
       if (Math.abs(p.timeMins - targetMins) < Math.abs(best.timeMins - targetMins)) best = p;
     }
     return best;
+  }
+
+  // Budget glucidique total à répartir sur la course
+  const carbBudget = (totalMins / 60) * carbsH;
+  // Nombre d'apports prévus pendant la course
+  const nbEvents = Math.max(1, Math.floor((totalMins - 15) / intervalMins) + 1);
+  // Glucides cible par apport (réparti uniformément, hors début progressif)
+  const carbsPerEvent = carbBudget / nbEvents;
+
+  // Choisit 1 produit (unité entière) le plus proche de la cible/apport,
+  // SANS jamais dépasser de plus d'1/2 unité (pour ne pas exploser le total)
+  function pickForTarget(targetCarbs, preferCaffeine) {
+    const pool = (preferCaffeine && caffGel) ? [caffGel] : gels;
+    if (!pool.length) return null;
+    // On vise 1 unité par apport en priorité (le total est déjà calibré par nbEvents)
+    let best = pool[0], bestErr = Infinity;
+    pool.forEach(p => {
+      const err = Math.abs(p.carbs - targetCarbs);
+      if (err < bestErr) { bestErr = err; best = p; }
+    });
+    // n = combien d'unités de CE produit pour approcher la cible (souvent 1)
+    let n = Math.max(1, Math.round(targetCarbs / best.carbs));
+    return { p: best, n };
   }
 
   // Avant départ
@@ -720,23 +763,26 @@ function buildNutritionPlan(course, cfg) {
     action: 'Repas riche en glucides, bien hydraté',
     detail: `60-80 g glucides complexes · 500 ml eau${preElectro ? ' + 1× ' + preElectro.name : ''} · Café si habitude`,
     priority: 'prio',
-    carbs: 0, kcal: 0, eau_ml: 500
+    carbs: 0, eau_ml: 500
   });
 
   let elapsedSinceElectro = 0;
 
   // Pendant la course
-  while (nextEvent <= totalMins + intervalMins) {
+  while (nextEvent <= totalMins) {
     const p = pointAtTime(nextEvent);
     const ratio = nextEvent / totalMins;
     const isLastThird = ratio > 0.66;
     const isLastFifth = ratio > 0.80;
+    const isStart = nextEvent <= 30;
 
     let action, detail, carbs, eau_ml, priority;
-    const carbsPerEvent = (carbsH / 60) * intervalMins;
     elapsedSinceElectro += intervalMins;
 
-    // Électrolyte toutes les ~45-60 min (ou 45 si chaud)
+    // Cible glucidique de cet apport (début = progressif à 60%)
+    const targetC = isStart ? carbsPerEvent * 0.6 : carbsPerEvent;
+
+    // Électrolyte toutes les ~45-60 min (45 si chaud)
     const electroEvery = cfg.meteo === 'chaud' ? 45 : 60;
     let addElectro = '';
     const elec = pickElectro();
@@ -745,50 +791,44 @@ function buildNutritionPlan(course, cfg) {
       elapsedSinceElectro = 0;
     }
 
-    if (nextEvent <= 30) {
-      // Début : démarrage doux (moitié de la cible)
+    if (isStart) {
       const drink = pickDrink();
-      const targetC = carbsPerEvent * 0.5;
-      const solid = pickSolid(targetC);
+      const solid = pickForTarget(targetC);
       action = 'Hydratation + démarrage glucides';
       detail = (drink ? `Boisson ${drink.name} (gorgées régulières)` : 'Gorgées régulières')
-             + (solid ? ` ou ${fmtProd(solid)}` : '') + addElectro;
+             + (solid ? ` + ${fmtProd(solid)}` : '') + addElectro;
       carbs = solid ? prodCarbs(solid) : Math.round(targetC);
       eau_ml = Math.round(mlPerHour / 60 * intervalMins);
       priority = 'prio';
     } else if (isLastFifth) {
-      // Dernier 20% : liquides uniquement
       const drink = pickDrink();
-      const solid = pickSolid(carbsPerEvent * 0.85);
+      const solid = pickForTarget(targetC);
       action = 'Format LIQUIDE uniquement — fenêtre digestive réduite';
       detail = (drink ? `${drink.name} privilégié` : (solid ? fmtProd(solid) + ' (dilué/avec eau)' : 'Boisson glucidique'))
              + (isUltra ? ' · bouillon salé si nausée' : '') + addElectro;
-      carbs = solid ? Math.round(prodCarbs(solid) * 0.85) : Math.round(carbsPerEvent * 0.85);
+      carbs = solid ? prodCarbs(solid) : Math.round(targetC);
       eau_ml = Math.round(mlPerHour / 60 * intervalMins * 1.1);
       priority = 'alert';
     } else if (isLastThird) {
-      // Dernier tiers : gel/semi-liquide, vigilance
-      const solid = pickSolid(carbsPerEvent, true); // privilégier caféine (coup de fouet)
+      const solid = pickForTarget(targetC, true);
       action = 'Gel + eau · surveiller nausées';
       detail = (solid ? fmtProd(solid) : 'Gel glucidique') + addElectro
              + (solid && solid.p.caf ? ' (caféine : coup de fouet)' : '');
-      carbs = solid ? prodCarbs(solid) : Math.round(carbsPerEvent);
+      carbs = solid ? prodCarbs(solid) : Math.round(targetC);
       eau_ml = Math.round(mlPerHour / 60 * intervalMins);
       priority = 'warn';
     } else if (p && (classifySlope(p.slope) === 'dn-s' || classifySlope(p.slope) === 'flat')) {
-      // Descente ou plat : fenêtre digestive idéale → chews/gel
-      const solid = pickSolid(carbsPerEvent);
+      const solid = pickForTarget(targetC);
       action = 'Fenêtre digestive ✓ — Apport solide';
       detail = (solid ? fmtProd(solid) : 'Chews / gel') + addElectro;
-      carbs = solid ? prodCarbs(solid) : Math.round(carbsPerEvent);
+      carbs = solid ? prodCarbs(solid) : Math.round(targetC);
       eau_ml = Math.round(mlPerHour / 60 * intervalMins);
       priority = 'prio';
     } else {
-      // Montée ou autre → gel rapide
-      const solid = pickSolid(carbsPerEvent);
+      const solid = pickForTarget(targetC);
       action = 'Gel ou boisson + eau';
       detail = (solid ? fmtProd(solid) : 'Gel glucides rapides') + addElectro;
-      carbs = solid ? prodCarbs(solid) : Math.round(carbsPerEvent);
+      carbs = solid ? prodCarbs(solid) : Math.round(targetC);
       eau_ml = Math.round(mlPerHour / 60 * intervalMins);
       priority = 'normal';
     }
@@ -808,7 +848,7 @@ function buildNutritionPlan(course, cfg) {
 
     nextEvent += intervalMins;
     eventIdx++;
-    if (eventIdx > 200) break;
+    if (eventIdx > 300) break;
   }
 
   // Après course
@@ -896,7 +936,7 @@ function renderProfil() {
     <div class="card-title">Paramètres athlète</div>
     <div class="profile-grid">
       <div class="profile-item"><div class="pi-val">${cfg.poids} kg</div><div class="pi-lbl">Poids</div></div>
-      <div class="profile-item"><div class="pi-val">${cfg.carbsH} g/h</div><div class="pi-lbl">Glucides cible (auto)</div></div>
+      <div class="profile-item"><div class="pi-val">${cfg.carbsH} g/h</div><div class="pi-lbl">Glucides cible (${cfg.carbsAuto ? 'auto' : 'manuel'})</div></div>
       <div class="profile-item"><div class="pi-val">${cfg.hydratMins} min</div><div class="pi-lbl">Intervalle hydrat.</div></div>
       <div class="profile-item"><div class="pi-val">${cfg.digest}</div><div class="pi-lbl">Tolérance digest.</div></div>
       <div class="profile-item"><div class="pi-val">${cfg.niveau}</div><div class="pi-lbl">Niveau</div></div>
@@ -1081,9 +1121,8 @@ function renderPassage() {
   const totalDist = c.totalDist;
   const totalKm = totalDist / 1000;
 
-  // Pas d'affichage : 1 km si course courte, sinon espacé pour ~30 lignes max
+  // Affichage : TOUS les km (1 ligne par km)
   let step = 1;
-  if (totalKm > 30) step = Math.ceil(totalKm / 30);   // ex: 60km -> step 2km
 
   // Construire les points d'affichage (par tranche de 'step' km)
   function pointAtDist(targetDist) {
@@ -1558,8 +1597,7 @@ function exportPDFComplet() {
 
   const totalDist = c.totalDist;
   const totalKm = totalDist / 1000;
-  let step = 1;
-  if (totalKm > 30) step = Math.ceil(totalKm / 30);
+  let step = 1;  // tous les km
   function pdfPointAtDist(td) {
     let best = c.points[0];
     for (const p of c.points) {
@@ -1903,18 +1941,26 @@ function generer() {
   const isUltraEffort = (gpxData._realDist || gpxData[gpxData.length-1].dist) > 50000 || (tpsMin > 360);
 
   // Objectif glucidique (g/h) — métrique principale pour le trailer.
-  // Références : 30-60 g/h effort court, 60-90 g/h endurance, jusqu'à 90+ sur ultra
-  // chez l'athlète entraîné (intestin entraîné). Module selon durée et niveau.
-  let carbsH;
-  if (isUltraEffort)      carbsH = (niveau === 'ultra') ? 90 : 75;   // ultra
-  else if (tpsMin > 180)  carbsH = (niveau === 'debutant') ? 50 : 70; // 3h+
-  else                    carbsH = (niveau === 'debutant') ? 40 : 60; // court
-  // kcalH dérivé des glucides (1g = 4 kcal), arrondi
-  const kcalH = Math.round(carbsH * 4 / 0.92); // ~92% des kcal viennent des glucides
+  // Mode AUTO : module selon durée et niveau (références sport-science).
+  // Mode MANUEL : valeur saisie par l'utilisateur.
+  const carbsMode = getRadio('rCarbsMode') || 'auto';
+  let carbsH, carbsAuto;
+  if (carbsMode === 'manuel') {
+    carbsH = parseInt(document.getElementById('fCarbsH').value) || 75;
+    carbsAuto = false;
+  } else {
+    if (isUltraEffort)      carbsH = (niveau === 'ultra') ? 90 : 75;   // ultra
+    else if (tpsMin > 180)  carbsH = (niveau === 'debutant') ? 50 : 70; // 3h+
+    else                    carbsH = (niveau === 'debutant') ? 40 : 60; // court
+    carbsAuto = true;
+  }
+  // kcalH dérivé des glucides (info secondaire)
+  const kcalH = Math.round(carbsH * 4 / 0.92);
 
   config = {
     poids,
     carbsH,                // objectif glucides g/h (métrique principale)
+    carbsAuto,
     kcalH,                 // dérivé (info secondaire)
     hydratMins: parseInt(document.getElementById('fHydrat').value) || 20,
     gluPct: 80,
@@ -1995,6 +2041,7 @@ function resetApp() {
 
 // Init au chargement
 renderProductGrid();
+setCarbsMode('auto');
 </script>
 </body>
 </html>
