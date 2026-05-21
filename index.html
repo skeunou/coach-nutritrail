@@ -167,6 +167,18 @@ tr:hover td{background:rgba(255,255,255,.02)}
 /* FATIGUE CURVE */
 #fatigueChart{width:100%;height:120px}
 
+/* PRODUCT GRID */
+.product-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+.prod-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surf2);border:1px solid var(--bdr);border-radius:8px;cursor:pointer;transition:.15s;user-select:none}
+.prod-item:hover{border-color:var(--mut)}
+.prod-item.sel{border-color:var(--acc);background:rgba(232,255,71,.06)}
+.prod-check{width:18px;height:18px;border-radius:5px;border:2px solid var(--bdr);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;color:#000;transition:.15s}
+.prod-item.sel .prod-check{background:var(--acc);border-color:var(--acc)}
+.prod-info{flex:1;min-width:0}
+.prod-name{font-size:13px;font-weight:600;color:var(--txt)}
+.prod-meta{font-size:11px;color:var(--mut)}
+.prod-cat{font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:var(--surf);color:var(--mut);flex-shrink:0}
+
 /* CHECKLIST */
 .checklist{list-style:none;margin-top:12px}
 .checklist li{padding:10px 0;border-bottom:1px solid rgba(42,42,48,.6);display:flex;align-items:center;gap:10px;font-size:13px}
@@ -256,8 +268,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <input type="text" id="fNomCourse" placeholder="ex: Trail des Crêtes 2026">
     </div>
     <div class="form-group full">
-      <label>Produits disponibles</label>
-      <textarea id="fProduits" rows="3" placeholder="ex: Gels SIS (60g), Barres Mulebar, Boisson glucidique maison, Bananes, fromage blanc..."></textarea>
+      <label>Produits disponibles (Precision Fuel & Hydration)</label>
+      <div id="productGrid" class="product-grid"></div>
+      <div class="hint">Coche les produits que tu emporteras. Le plan piochera dedans selon les moments de course.</div>
     </div>
   </div>
 
@@ -324,6 +337,52 @@ let gpxData = null;      // points bruts {lat,lon,ele,dist}
 let courseData = null;   // données calculées de course
 let planData = null;     // plan nutrition complet
 let config = {};
+
+// ============================================================
+// BASE DE PRODUITS — Precision Fuel & Hydration
+// (carbs en g, kcal, sodium en mg par unité)
+// type: gel | chew | drink | electro
+// ============================================================
+const PRODUCTS = [
+  { id:'pf30gel',  name:'PF 30 Gel',          cat:'Gel',     type:'gel',    carbs:30, kcal:120, sodium:0,    caf:0,   unit:'gel',     liquid:false },
+  { id:'pf30caf',  name:'PF 30 Caffeine Gel', cat:'Gel',     type:'gel',    carbs:30, kcal:120, sodium:0,    caf:100, unit:'gel',     liquid:false },
+  { id:'pf30chew', name:'PF 30 Chew',         cat:'Chews',   type:'chew',   carbs:30, kcal:120, sodium:0,    caf:0,   unit:'sachet',  liquid:false },
+  { id:'pf90gel',  name:'PF 90 Gel',          cat:'Gel',     type:'gel',    carbs:90, kcal:360, sodium:0,    caf:0,   unit:'gel',     liquid:false },
+  { id:'pf60drink',name:'PF 60 Drink Mix',    cat:'Boisson', type:'drink',  carbs:60, kcal:240, sodium:1000, caf:0,   unit:'L',       liquid:true },
+  { id:'pf30drink',name:'PF 30 Drink Mix',    cat:'Boisson', type:'drink',  carbs:30, kcal:120, sodium:250,  caf:0,   unit:'L',       liquid:true },
+  { id:'ph1000',   name:'PH 1000 Tablet',     cat:'Électro', type:'electro',carbs:1,  kcal:16,  sodium:500,  caf:0,   unit:'tab/500ml',liquid:true },
+  { id:'ph1500',   name:'PH 1500 Tablet',     cat:'Électro', type:'electro',carbs:2,  kcal:16,  sodium:750,  caf:0,   unit:'tab/500ml',liquid:true },
+  { id:'ph1000cap',name:'PH 1000 Capsules',   cat:'Électro', type:'electro',carbs:0,  kcal:0,   sodium:500,  caf:0,   unit:'gélule', liquid:false },
+];
+let selectedProducts = ['pf30gel','pf30chew','pf60drink','ph1000']; // sélection par défaut raisonnable
+
+function renderProductGrid() {
+  const grid = document.getElementById('productGrid');
+  if (!grid) return;
+  grid.innerHTML = PRODUCTS.map(p => {
+    const sel = selectedProducts.includes(p.id);
+    let meta = `${p.carbs}g gluc · ${p.kcal} kcal`;
+    if (p.sodium) meta += ` · ${p.sodium}mg Na`;
+    if (p.caf) meta += ` · ${p.caf}mg caféine`;
+    return `<div class="prod-item${sel?' sel':''}" data-pid="${p.id}" onclick="toggleProduct('${p.id}')">
+      <div class="prod-check">${sel?'✓':''}</div>
+      <div class="prod-info">
+        <div class="prod-name">${p.name}</div>
+        <div class="prod-meta">${meta}</div>
+      </div>
+      <div class="prod-cat">${p.cat}</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleProduct(id) {
+  const i = selectedProducts.indexOf(id);
+  if (i >= 0) selectedProducts.splice(i, 1);
+  else selectedProducts.push(id);
+  renderProductGrid();
+}
+
+function getProduct(id) { return PRODUCTS.find(p => p.id === id); }
 
 // ============================================================
 // UTILS
@@ -409,10 +468,8 @@ function loadGPX(file) {
       const trkpts = xml.querySelectorAll('trkpt,rtept,wpt');
       if (!trkpts.length) { alert('Fichier GPX vide ou invalide'); return; }
 
-      let points = [];
-      let cumDist = 0;
-      let prev = null;
-
+      // 1) Extraire les points bruts (lat, lon, ele)
+      let raw = [];
       trkpts.forEach(pt => {
         const lat = parseFloat(pt.getAttribute('lat'));
         const lon = parseFloat(pt.getAttribute('lon'));
@@ -420,15 +477,39 @@ function loadGPX(file) {
         const ele = eleEl ? parseFloat(eleEl.textContent) : 0;
         const timeEl = pt.querySelector('time');
         const time = timeEl ? timeEl.textContent : null;
+        if (!isNaN(lat) && !isNaN(lon)) raw.push({ lat, lon, ele: isNaN(ele) ? 0 : ele, time });
+      });
+      if (raw.length < 2) { alert('GPX : pas assez de points valides'); return; }
 
-        const p = { lat, lon, ele, time };
+      // 2) Décimer AVANT calcul si trop de points (sur les points bruts)
+      if (raw.length > 2000) {
+        const factor = Math.ceil(raw.length / 1500);
+        raw = raw.filter((_, i) => i % factor === 0 || i === raw.length - 1);
+      }
+
+      // 3) Lisser l'altitude (moyenne glissante) pour réduire le bruit GPS
+      const win = 3; // demi-fenêtre
+      const smoothEle = raw.map((p, i) => {
+        let sum = 0, n = 0;
+        for (let j = Math.max(0, i - win); j <= Math.min(raw.length - 1, i + win); j++) {
+          sum += raw[j].ele; n++;
+        }
+        return sum / n;
+      });
+
+      // 4) Construire les points avec distances cumulées + altitude lissée
+      let points = [];
+      let cumDist = 0;
+      let prev = null;
+      raw.forEach((p0, i) => {
+        const p = { lat: p0.lat, lon: p0.lon, ele: smoothEle[i], eleRaw: p0.ele, time: p0.time };
         if (prev) {
           const d = haversine(prev, p);
           cumDist += d;
           p.dist = cumDist;
           p.segDist = d;
-          p.dEle = ele - prev.ele;
-          p.slope = d > 0 ? (ele - prev.ele) / d * 100 : 0;
+          p.dEle = p.ele - prev.ele;
+          p.slope = d > 0 ? (p.dEle / d) * 100 : 0;
         } else {
           p.dist = 0; p.segDist = 0; p.dEle = 0; p.slope = 0;
         }
@@ -438,26 +519,21 @@ function loadGPX(file) {
 
       gpxData = points;
 
-      // Décimer si trop de points (>2000)
-      if (gpxData.length > 2000) {
-        const factor = Math.ceil(gpxData.length / 1000);
-        gpxData = gpxData.filter((_, i) => i % factor === 0 || i === gpxData.length - 1);
-        // Recalculer distances cumulées
-        let cd = 0;
-        gpxData.forEach((p, i) => {
-          if (i === 0) { p.dist = 0; return; }
-          cd += p.segDist * factor;
-          p.dist = cd;
-        });
+      // 5) D+ / D- avec SEUIL anti-bruit : on accumule les micro-variations
+      //    et on ne valide une montée/descente qu'au-delà de 3 m cumulés.
+      const THRESH = 3; // mètres
+      let dpPos = 0, dpNeg = 0;
+      let acc = 0;       // accumulateur de variation depuis dernier "palier"
+      for (let i = 1; i < gpxData.length; i++) {
+        const de = gpxData[i].ele - gpxData[i - 1].ele;
+        // si le sens change, on remet l'accumulateur dans le bon sens
+        if (acc !== 0 && Math.sign(de) !== Math.sign(acc)) acc = 0;
+        acc += de;
+        if (acc >= THRESH) { dpPos += acc; acc = 0; }
+        else if (acc <= -THRESH) { dpNeg += Math.abs(acc); acc = 0; }
       }
 
       const totalDist = gpxData[gpxData.length - 1].dist;
-      const eles = gpxData.map(p => p.ele);
-      let dpPos = 0, dpNeg = 0;
-      gpxData.forEach(p => {
-        if (p.dEle > 0) dpPos += p.dEle;
-        else dpNeg += Math.abs(p.dEle);
-      });
 
       // Nom depuis fichier
       const nameEl = xml.querySelector('name');
@@ -468,7 +544,7 @@ function loadGPX(file) {
       // UI update
       document.getElementById('uploadIcon').textContent = '✅';
       document.getElementById('uploadTitle').textContent = file.name.replace('.gpx', '');
-      document.getElementById('uploadSub').textContent = `${(totalDist/1000).toFixed(1)} km · D+ ${Math.round(dpPos)}m · ${points.length} points`;
+      document.getElementById('uploadSub').textContent = `${(totalDist/1000).toFixed(1)} km · D+ ${Math.round(dpPos)}m · ${gpxData.length} points`;
       document.getElementById('dropZone').classList.add('has-file');
       document.getElementById('btnGenerer').disabled = false;
       document.getElementById('statusBadge').textContent = 'GPX chargé';
@@ -547,12 +623,16 @@ function computeCourse(tpsTotal, niveau) {
     return { ...p, timeMins: cumMins, segMins };
   });
 
-  // Calculer D+ D- total
-  let dpPos = 0, dpNeg = 0;
-  pts.forEach(p => {
-    if (p.dEle > 0) dpPos += p.dEle;
-    else dpNeg += Math.abs(p.dEle);
-  });
+  // Calculer D+ D- total avec seuil anti-bruit (cohérent avec loadGPX)
+  const THRESH = 3;
+  let dpPos = 0, dpNeg = 0, acc = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const de = pts[i].ele - pts[i - 1].ele;
+    if (acc !== 0 && Math.sign(de) !== Math.sign(acc)) acc = 0;
+    acc += de;
+    if (acc >= THRESH) { dpPos += acc; acc = 0; }
+    else if (acc <= -THRESH) { dpNeg += Math.abs(acc); acc = 0; }
+  }
 
   return {
     points: result,
@@ -579,13 +659,43 @@ function buildNutritionPlan(course, cfg) {
   const hydratFactor = cfg.meteo === 'chaud' ? 1.4 : cfg.meteo === 'froid' ? 0.8 : 1.0;
   const mlPerHour = 500 * hydratFactor;
 
+  // Produits sélectionnés, triés par type
+  const sel = (cfg.produits || []).map(getProduct).filter(Boolean);
+  const gels  = sel.filter(p => p.type === 'gel' || p.type === 'chew');
+  const drinks = sel.filter(p => p.type === 'drink');
+  const electros = sel.filter(p => p.type === 'electro');
+  const caffGel = sel.find(p => p.caf > 0);
+
+  // Choisit le meilleur produit "solide/gel" pour atteindre ~targetKcal
+  function pickSolid(targetKcal, preferCaffeine) {
+    if (preferCaffeine && caffGel) {
+      const n = Math.max(1, Math.round(targetKcal / caffGel.kcal));
+      return { p: caffGel, n };
+    }
+    if (!gels.length) return null;
+    // Choisir le gel dont 1 unité approche le mieux la cible (sans trop dépasser)
+    let best = gels[0], bestN = 1, bestErr = Infinity;
+    gels.forEach(p => {
+      const n = Math.max(1, Math.round(targetKcal / p.kcal));
+      const err = Math.abs(n * p.kcal - targetKcal);
+      if (err < bestErr) { bestErr = err; best = p; bestN = n; }
+    });
+    return { p: best, n: bestN };
+  }
+  function pickDrink() { return drinks[0] || null; }
+  function pickElectro() { return electros[0] || null; }
+
+  function fmtProd(pick) {
+    if (!pick) return null;
+    return `${pick.n}× ${pick.p.name}`;
+  }
+
   // Générer des événements nutritionnels
   const events = [];
   const intervalMins = cfg.hydratMins;
   let nextEvent = 10; // premiers 10 min = départ
   let eventIdx = 0;
 
-  // Fonction pour trouver le point le plus proche d'un temps
   function pointAtTime(targetMins) {
     let best = points[0];
     for (const p of points) {
@@ -595,16 +705,19 @@ function buildNutritionPlan(course, cfg) {
   }
 
   // Avant départ
+  const preElectro = pickElectro();
   events.push({
     type: 'prerace',
     timeMins: -30,
     km: 0,
     label: 'Pré-départ (-30 min)',
     action: 'Repas riche en glucides, bien hydraté',
-    detail: `200-250 kcal glucides complexes · 500 ml eau · Café si habitude`,
+    detail: `200-250 kcal glucides complexes · 500 ml eau${preElectro ? ' + 1× ' + preElectro.name : ''} · Café si habitude`,
     priority: 'prio',
     kcal: 0, eau_ml: 500
   });
+
+  let elapsedSinceElectro = 0;
 
   // Pendant la course
   while (nextEvent <= totalMins + intervalMins) {
@@ -613,57 +726,73 @@ function buildNutritionPlan(course, cfg) {
     const isLastThird = ratio > 0.66;
     const isLastFifth = ratio > 0.80;
 
-    // Décider quoi manger selon le moment
     let action, detail, kcal, eau_ml, priority;
     const kcalPerEvent = (kcalH / 60) * intervalMins;
+    elapsedSinceElectro += intervalMins;
+
+    // Électrolyte toutes les ~45-60 min (ou 30 si chaud)
+    const electroEvery = cfg.meteo === 'chaud' ? 45 : 60;
+    let addElectro = '';
+    const elec = pickElectro();
+    if (elec && elapsedSinceElectro >= electroEvery) {
+      addElectro = ` + 1× ${elec.name}`;
+      elapsedSinceElectro = 0;
+    }
 
     if (nextEvent <= 30) {
-      // Début : démarrage doux, pas encore d'absorption
+      // Début : démarrage doux
+      const drink = pickDrink();
+      const targetK = kcalPerEvent * 0.5;
+      const solid = pickSolid(targetK);
       action = 'Hydratation + démarrage glucides';
-      detail = `1 gorgée toutes les 5 min · ${Math.round(kcalPerEvent * 0.5)} kcal gel ou boisson`;
-      kcal = Math.round(kcalPerEvent * 0.5);
+      detail = (drink ? `Boisson ${drink.name} (gorgées régulières)` : 'Gorgées régulières')
+             + (solid ? ` ou ${fmtProd(solid)}` : '') + addElectro;
+      kcal = Math.round(targetK);
       eau_ml = Math.round(mlPerHour / 60 * intervalMins);
       priority = 'prio';
     } else if (isLastFifth) {
       // Dernier 20% : liquides uniquement
-      action = isUltra ? 'Bouillon salé + liquide sucré' : 'Gel + eau · Format liquide UNIQUEMENT';
-      detail = `Fenêtre digestive réduite · ${Math.round(kcalPerEvent * 0.8)} kcal liquide`;
+      const drink = pickDrink();
+      const solid = pickSolid(kcalPerEvent * 0.8);
+      action = 'Format LIQUIDE uniquement — fenêtre digestive réduite';
+      detail = (drink ? `${drink.name} privilégié` : (solid ? fmtProd(solid) + ' (dilué/avec eau)' : 'Boisson glucidique'))
+             + (isUltra ? ' · bouillon salé si nausée' : '') + addElectro;
       kcal = Math.round(kcalPerEvent * 0.8);
       eau_ml = Math.round(mlPerHour / 60 * intervalMins * 1.1);
       priority = 'alert';
     } else if (isLastThird) {
-      // Dernier tiers : semi-liquide
-      action = isUltra ? 'Aliment solide léger + gel + eau' : 'Gel ou barre molle + eau';
-      detail = `${Math.round(kcalPerEvent)} kcal · Surveiller nausées · Électrolytes`;
+      // Dernier tiers : gel/semi-liquide, vigilance
+      const solid = pickSolid(kcalPerEvent, true); // privilégier caféine si dispo (coup de fouet)
+      action = 'Gel + eau · surveiller nausées';
+      detail = (solid ? fmtProd(solid) : 'Gel glucidique') + addElectro
+             + (solid && solid.p.caf ? ' (caféine : coup de fouet)' : '');
       kcal = Math.round(kcalPerEvent);
       eau_ml = Math.round(mlPerHour / 60 * intervalMins);
       priority = 'warn';
     } else if (p && (classifySlope(p.slope) === 'dn-s' || classifySlope(p.slope) === 'flat')) {
-      // Descente ou plat : fenêtre digestive idéale
+      // Descente ou plat : fenêtre digestive idéale → chews/gel
+      const solid = pickSolid(kcalPerEvent);
       action = 'Fenêtre digestive ✓ — Apport solide';
-      detail = `Barre, pâtes de fruit, banane · ${Math.round(kcalPerEvent)} kcal`;
+      detail = (solid ? fmtProd(solid) : 'Chews / gel') + addElectro;
       kcal = Math.round(kcalPerEvent);
       eau_ml = Math.round(mlPerHour / 60 * intervalMins);
       priority = 'prio';
     } else {
-      // Montée ou autre
+      // Montée ou autre → gel rapide
+      const solid = pickSolid(kcalPerEvent);
       action = 'Gel ou boisson + eau';
-      detail = `${Math.round(kcalPerEvent)} kcal glucides rapides`;
+      detail = (solid ? fmtProd(solid) : 'Gel glucides rapides') + addElectro;
       kcal = Math.round(kcalPerEvent);
       eau_ml = Math.round(mlPerHour / 60 * intervalMins);
       priority = 'normal';
     }
-
-    // Alerte Na après 2h en chaud
-    let alertNa = '';
-    if (nextEvent > 120 && cfg.meteo === 'chaud') alertNa = ' · +sel (électrolytes)';
 
     events.push({
       timeMins: nextEvent,
       km: p ? p.dist / 1000 : 0,
       slope: p ? p.slope : 0,
       label: fmtTime(nextEvent) + (p ? ` — km ${(p.dist/1000).toFixed(1)}` : ''),
-      action: action + alertNa,
+      action,
       detail,
       kcal,
       eau_ml: Math.round(eau_ml),
@@ -673,20 +802,34 @@ function buildNutritionPlan(course, cfg) {
 
     nextEvent += intervalMins;
     eventIdx++;
-    if (eventIdx > 100) break;
+    if (eventIdx > 200) break;
   }
 
   // Après course
+  const postElectro = pickElectro();
   events.push({
     type: 'postrace',
     timeMins: totalMins + 30,
     km: totalDist / 1000,
     label: 'Post-arrivée (+30 min)',
     action: 'Récupération CRITIQUE — Fenêtre anabolique 30 min',
-    detail: `25-30g protéines · 60-80g glucides rapides · 500 ml eau + électrolytes`,
+    detail: `25-30g protéines · 60-80g glucides rapides · 500 ml eau${postElectro ? ' + 1× ' + postElectro.name : ' + électrolytes'}`,
     priority: 'prio',
     kcal: Math.round(totalKcal * 0.08),
     eau_ml: 500
+  });
+
+  // Inventaire produits (totaux à emporter)
+  const inventory = {};
+  events.forEach(e => {
+    if (e.timeMins < 0 || e.timeMins > totalMins) return;
+    (e.detail.match(/(\d+)× ([A-Za-z0-9 ]+)/g) || []).forEach(m => {
+      const mm = m.match(/(\d+)× (.+)/);
+      if (mm) {
+        const n = parseInt(mm[1]); const name = mm[2].trim();
+        inventory[name] = (inventory[name] || 0) + n;
+      }
+    });
   });
 
   // Totaux
@@ -697,6 +840,8 @@ function buildNutritionPlan(course, cfg) {
 
   return {
     events,
+    inventory,
+    selectedProductObjs: sel,
     totalKcalPlan,
     totalKcal: Math.round(totalKcal),
     totalEau: Math.round(totalEau / 1000 * 10) / 10,
@@ -764,7 +909,7 @@ function renderProfil() {
       <span><span class="ml-dot" style="background:#fb923c"></span>Lipides ${100 - cfg.gluPct - cfg.protPct}%</span>
     </div>
     <div style="font-size:11px;color:var(--mut);margin-top:8px">Répartition standard course : glucides prioritaires (énergie rapide). Apport calorique calculé selon ton poids et la durée d'effort.</div>
-    ${cfg.produits ? `<div style="margin-top:12px;font-size:13px;color:var(--mut)"><b style="color:var(--txt)">Produits prévus :</b> ${cfg.produits}</div>` : ''}
+    ${(cfg.produits && cfg.produits.length) ? `<div style="margin-top:14px"><b style="color:var(--txt);font-size:13px">Produits emportés :</b><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${cfg.produits.map(getProduct).filter(Boolean).map(p => `<span class="nutr-badge" style="background:var(--surf2);color:var(--txt);border:1px solid var(--bdr)">${p.name} <span style="color:var(--mut)">${p.carbs}g</span></span>`).join('')}</div></div>` : '<div style="margin-top:12px;font-size:12px;color:var(--warn)">⚠️ Aucun produit sélectionné — le plan restera générique</div>'}
   </div>
 
   <div class="card">
@@ -926,37 +1071,69 @@ function renderPassage() {
   const c = courseData;
   const pts = c.points;
   const totalDist = c.totalDist;
+  const totalKm = totalDist / 1000;
 
-  // Sélectionner points à afficher (chaque km + points remarquables)
-  const step = Math.max(1, Math.floor(totalDist / 1000));
-  const displayed = [];
-  let nextKm = 0;
+  // Pas d'affichage : 1 km si course courte, sinon espacé pour ~30 lignes max
+  let step = 1;
+  if (totalKm > 30) step = Math.ceil(totalKm / 30);   // ex: 60km -> step 2km
 
-  for (let km = 0; km <= totalDist / 1000; km += step) {
-    const targetDist = km * 1000;
+  // Construire les points d'affichage (par tranche de 'step' km)
+  function pointAtDist(targetDist) {
     let best = pts[0];
     for (const p of pts) {
       if (Math.abs(p.dist - targetDist) < Math.abs(best.dist - targetDist)) best = p;
     }
-    if (!displayed.find(d => d === best)) displayed.push(best);
+    return best;
+  }
+
+  const displayed = [];
+  for (let km = 0; km <= totalKm + 0.001; km += step) {
+    const p = pointAtDist(km * 1000);
+    if (!displayed.includes(p)) displayed.push(p);
   }
   // Toujours inclure le dernier point
-  if (!displayed.includes(pts[pts.length - 1])) displayed.push(pts[pts.length - 1]);
+  const lastPt = pts[pts.length - 1];
+  if (!displayed.includes(lastPt)) displayed.push(lastPt);
+
+  // Pour chaque ligne affichée, calculer la pente/D+/D- réels du SEGMENT
+  // depuis la ligne précédente (et non la pente d'un seul point GPX isolé).
+  const startIdx = {};
+  pts.forEach((p, i) => { if (startIdx[p.dist] === undefined) startIdx[p.dist] = i; });
+
+  function segmentStats(fromP, toP) {
+    const i0 = pts.indexOf(fromP), i1 = pts.indexOf(toP);
+    let dPos = 0, dNeg = 0;
+    for (let i = i0 + 1; i <= i1; i++) {
+      const de = pts[i].ele - pts[i-1].ele;
+      if (de > 0) dPos += de; else dNeg += Math.abs(de);
+    }
+    const dist = toP.dist - fromP.dist;
+    const dEle = toP.ele - fromP.ele;
+    const slope = dist > 0 ? (dEle / dist) * 100 : 0;
+    return { slope, dPos, dNeg, dist };
+  }
 
   const slopeNames = { flat: 'Plat', 'up-s': 'Montée', 'up-r': '⚡ Raide', 'dn-s': 'Descente', 'dn-r': '⬇️ Raide' };
   const slopeCls = { flat: 'slope-flat', 'up-s': 'slope-up-s', 'up-r': 'slope-up-r', 'dn-s': 'slope-dn-s', 'dn-r': 'slope-dn-r' };
 
-  let rows = displayed.map(p => {
-    const cls = classifySlope(p.slope);
+  let rows = displayed.map((p, idx) => {
     const ratio = p.dist / totalDist;
     const fc = Math.round(fatigueCoeff(ratio, config.niveau) * 100);
-    const allure = p.timeMins > 0 ? Math.round((p.timeMins / (p.dist / 1000))).toString().replace(/(\d{2})$/, ':$1') : '—';
+    // Segment depuis la ligne précédente
+    let segSlope = 0, segDp = 0;
+    if (idx > 0) {
+      const st = segmentStats(displayed[idx-1], p);
+      segSlope = st.slope;
+      segDp = Math.round(st.dPos);
+    }
+    const cls = classifySlope(segSlope);
     return `<tr>
       <td><b>${(p.dist/1000).toFixed(1)} km</b></td>
       <td>${fmtTime(p.timeMins)}</td>
       <td>${Math.round(p.ele)} m</td>
-      <td>${p.slope > 0 ? '+' : ''}${p.slope.toFixed(1)}%</td>
+      <td>${segSlope > 0 ? '+' : ''}${segSlope.toFixed(1)}%</td>
       <td><span class="slope ${slopeCls[cls]}">${slopeNames[cls] || cls}</span></td>
+      <td>${idx > 0 ? '+' + segDp : '—'}</td>
       <td>${fc}%</td>
     </tr>`;
   }).join('');
@@ -1008,6 +1185,7 @@ function renderPassage() {
           <th>Altitude</th>
           <th>Pente</th>
           <th>Terrain</th>
+          <th>D+ seg.</th>
           <th>% Perf.</th>
         </tr></thead>
         <tbody>${rows}</tbody>
@@ -1076,6 +1254,24 @@ function renderNutrition() {
   </div>
 
   ${alertsHtml}
+
+  ${Object.keys(plan.inventory || {}).length ? `<div class="card">
+    <div class="card-title">📦 Inventaire à emporter</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Produit</th><th>Quantité</th><th>Glucides</th><th>Sodium</th></tr></thead>
+        <tbody>
+        ${Object.entries(plan.inventory).map(([name, qty]) => {
+          const prod = PRODUCTS.find(p => p.name === name);
+          const carbs = prod ? prod.carbs * qty : 0;
+          const na = prod ? prod.sodium * qty : 0;
+          return `<tr><td><b>${name}</b></td><td>${qty}× ${prod ? prod.unit : ''}</td><td>${carbs}g</td><td>${na ? na + 'mg' : '—'}</td></tr>`;
+        }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div style="font-size:11px;color:var(--mut);margin-top:8px">Quantités estimées sur la base du plan. Prévois une marge de sécurité (+1-2 gels).</div>
+  </div>` : ''}
 
   <div class="card">
     <div class="card-title">Checklist pré-course (J-1 & matin J)</div>
@@ -1303,13 +1499,34 @@ function exportPDFComplet() {
   doc.text(`Glucides ${config.gluPct}%   Protéines ${config.protPct}%   Lipides ${lipPct}%`, pad, y);
   y += 8;
 
-  // Produits
-  if (config.produits) {
-    y = sectionTitle(y, 'PRODUITS DISPONIBLES');
-    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...TXT);
-    const lines = doc.splitTextToSize(config.produits, W - pad*2 - 4);
-    lines.forEach(l => { doc.text(l, pad + 2, y); y += 5; });
-    y += 4;
+  // Produits + inventaire
+  if (config.produits && config.produits.length) {
+    y = sectionTitle(y, 'INVENTAIRE PRODUITS À EMPORTER');
+    const inv = plan.inventory || {};
+    const invKeys = Object.keys(inv);
+    if (invKeys.length) {
+      // mini-tableau
+      const cw = [70, 30, 30, 30];
+      const cx = [0]; cw.forEach((w,i)=>cx.push(cx[i]+w));
+      ['Produit','Qté','Glucides','Sodium'].forEach((h,i) => cell(pad+cx[i], y, cw[i]-1, 7, SURF, MUT, h, 7, true));
+      y += 8;
+      invKeys.forEach((name, ri) => {
+        const prod = PRODUCTS.find(p => p.name === name);
+        const qty = inv[name];
+        const carbs = prod ? prod.carbs * qty : 0;
+        const na = prod ? prod.sodium * qty : 0;
+        const bg = ri % 2 === 0 ? DARK : [16,16,18];
+        [name, qty+'×', carbs+'g', na?na+'mg':'-'].forEach((v,i) => cell(pad+cx[i], y, cw[i]-1, 7, bg, TXT, v, 7));
+        y += 7;
+      });
+      y += 4;
+    } else {
+      doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...TXT);
+      const names = config.produits.map(id => { const p = getProduct(id); return p ? p.name : id; }).join(', ');
+      const lines = doc.splitTextToSize(names, W - pad*2 - 4);
+      lines.forEach(l => { doc.text(l, pad + 2, y); y += 5; });
+      y += 4;
+    }
   }
 
   // Checklist pré-course
@@ -1332,24 +1549,41 @@ function exportPDFComplet() {
   y = sectionTitle(y, `TEMPS DE PASSAGE — ${nomCourse}`);
 
   const totalDist = c.totalDist;
-  const step = Math.max(1, Math.floor(totalDist / 1000));
-  const displayed = [];
-  for (let km = 0; km <= totalDist / 1000; km += step) {
-    const targetDist = km * 1000;
+  const totalKm = totalDist / 1000;
+  let step = 1;
+  if (totalKm > 30) step = Math.ceil(totalKm / 30);
+  function pdfPointAtDist(td) {
     let best = c.points[0];
     for (const p of c.points) {
-      if (Math.abs(p.dist - targetDist) < Math.abs(best.dist - targetDist)) best = p;
+      if (Math.abs(p.dist - td) < Math.abs(best.dist - td)) best = p;
     }
-    if (!displayed.includes(best)) displayed.push(best);
+    return best;
+  }
+  const displayed = [];
+  for (let km = 0; km <= totalKm + 0.001; km += step) {
+    const p = pdfPointAtDist(km * 1000);
+    if (!displayed.includes(p)) displayed.push(p);
   }
   if (!displayed.includes(c.points[c.points.length-1])) displayed.push(c.points[c.points.length-1]);
 
-  const slopeNames = { flat:'Plat', 'up-s':'Montée', 'up-r':'Montée raide', 'dn-s':'Descente', 'dn-r':'Descente raide' };
+  function pdfSegStats(fromP, toP) {
+    const i0 = c.points.indexOf(fromP), i1 = c.points.indexOf(toP);
+    let dPos = 0;
+    for (let i = i0 + 1; i <= i1; i++) {
+      const de = c.points[i].ele - c.points[i-1].ele;
+      if (de > 0) dPos += de;
+    }
+    const dist = toP.dist - fromP.dist;
+    const slope = dist > 0 ? ((toP.ele - fromP.ele) / dist) * 100 : 0;
+    return { slope, dPos };
+  }
+
+  const slopeNames = { flat:'Plat', 'up-s':'Montee', 'up-r':'Montee raide', 'dn-s':'Descente', 'dn-r':'Descente raide' };
   const rowH = 8;
-  const cols = [22,22,18,16,30,18];
+  const cols = [20,20,18,16,28,16,16];
   const colX = [0];
   cols.forEach((w, i) => colX.push(colX[i] + w));
-  const heads = ['Km','Passage','Altitude','Pente','Terrain','% Perf.'];
+  const heads = ['Km','Passage','Altitude','Pente','Terrain','D+ seg','% Perf'];
 
   // Header
   heads.forEach((h, i) => {
@@ -1358,12 +1592,13 @@ function exportPDFComplet() {
   y += rowH + 1;
 
   displayed.forEach((p, ri) => {
-    const cls = classifySlope(p.slope);
     const ratio = p.dist / totalDist;
     const fc = Math.round(fatigueCoeff(ratio, config.niveau) * 100);
     const bg = ri % 2 === 0 ? DARK : [16,16,18];
+    let segSlope = 0, segDp = 0;
+    if (ri > 0) { const st = pdfSegStats(displayed[ri-1], p); segSlope = st.slope; segDp = Math.round(st.dPos); }
+    const cls = classifySlope(segSlope);
 
-    // Color for % perf
     let perfColor = GRN;
     if (fc < 75) perfColor = WARN;
     if (fc < 65) perfColor = RED;
@@ -1372,15 +1607,19 @@ function exportPDFComplet() {
       (p.dist/1000).toFixed(1)+'km',
       fmtTime(p.timeMins),
       Math.round(p.ele)+'m',
-      (p.slope>=0?'+':'')+p.slope.toFixed(1)+'%',
+      (segSlope>=0?'+':'')+segSlope.toFixed(1)+'%',
       slopeNames[cls] || cls,
+      ri>0 ? '+'+segDp : '-',
       fc+'%',
     ];
     rowData.forEach((v, i) => {
-      cell(pad + colX[i], y, cols[i]-1, rowH, bg, i===5?perfColor:TXT, v, 7, i===5, 'center');
+      cell(pad + colX[i], y, cols[i]-1, rowH, bg, i===6?perfColor:TXT, v, 7, i===6, 'center');
     });
     y += rowH;
-    if (y > H - 20) { page(3); y = 24; y = sectionTitle(y, 'TEMPS DE PASSAGE (suite)'); }
+    if (y > H - 20) { page(3); y = 24; y = sectionTitle(y, 'TEMPS DE PASSAGE (suite)');
+      heads.forEach((h, i) => cell(pad + colX[i], y, cols[i]-1, rowH, SURF, MUT, h, 7, true, 'center'));
+      y += rowH + 1;
+    }
   });
   y += 6;
 
@@ -1673,7 +1912,7 @@ function generer() {
     digest: getRadio('rDigest') || 'normale',
     niveau,
     meteo: getRadio('rMeteo') || 'tempere',
-    produits: document.getElementById('fProduits').value.trim(),
+    produits: selectedProducts.slice(),
     tpsMin
   };
 
@@ -1743,6 +1982,9 @@ function resetApp() {
   });
   showTab('config');
 }
+
+// Init au chargement
+renderProductGrid();
 </script>
 </body>
 </html>
