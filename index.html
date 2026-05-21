@@ -1,0 +1,1740 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NutriTrail GPX — LV Tools</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+:root {
+  --bg:#0d0d0f; --surf:#141416; --surf2:#1c1c20; --bdr:#2a2a30;
+  --acc:#e8ff47; --acc2:#ff6b35; --warn:#ff9500; --txt:#f0f0f0;
+  --mut:#6b6b78; --grn:#4ade80; --red:#f87171; --purp:#a78bfa;
+  --blue:#38bdf8;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:'DM Sans',sans-serif;min-height:100vh}
+
+/* HEADER */
+.header{position:sticky;top:0;z-index:100;background:var(--bg);border-bottom:2px solid var(--acc);padding:12px 20px;display:flex;align-items:center;justify-content:space-between}
+.header-left{display:flex;align-items:center;gap:12px}
+.header h1{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;color:var(--acc)}
+.header-sub{font-size:11px;color:var(--mut);letter-spacing:1px;text-transform:uppercase}
+.badge{background:var(--surf2);border:1px solid var(--bdr);border-radius:20px;padding:4px 12px;font-size:11px;color:var(--mut);letter-spacing:1px;text-transform:uppercase}
+.badge.active{border-color:var(--acc);color:var(--acc)}
+
+/* TABS */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--bdr);background:var(--surf);padding:0 20px}
+.tab{padding:14px 20px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:var(--mut);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;transition:.2s;letter-spacing:.5px}
+.tab.active{color:var(--acc);border-bottom-color:var(--acc)}
+.tab:hover:not(.active){color:var(--txt)}
+.tab-content{display:none;padding:24px 20px;max-width:900px;margin:0 auto}
+.tab-content.active{display:block}
+
+/* UPLOAD ZONE */
+.upload-zone{border:2px dashed var(--bdr);border-radius:12px;padding:48px 32px;text-align:center;cursor:pointer;transition:.3s;background:var(--surf)}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--acc);background:rgba(232,255,71,.04)}
+.upload-zone.has-file{border-color:var(--grn);border-style:solid}
+.upload-icon{font-size:48px;margin-bottom:16px}
+.upload-title{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:2px;color:var(--txt);margin-bottom:8px}
+.upload-sub{font-size:13px;color:var(--mut)}
+#gpxInput{display:none}
+
+/* FORM GRID */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px}
+.form-group{display:flex;flex-direction:column;gap:6px}
+.form-group.full{grid-column:1/-1}
+label{font-size:12px;color:var(--mut);letter-spacing:.5px;text-transform:uppercase;font-weight:500}
+input,select,textarea{background:var(--surf2);border:1px solid var(--bdr);border-radius:8px;color:var(--txt);padding:10px 14px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:.2s}
+input:focus,select:focus{border-color:var(--acc)}
+select option{background:var(--surf2)}
+.hint{font-size:11px;color:var(--mut);margin-top:2px}
+
+/* RADIO GROUP */
+.radio-group{display:flex;gap:8px;flex-wrap:wrap}
+.radio-opt{padding:8px 16px;border:1px solid var(--bdr);border-radius:20px;cursor:pointer;font-size:13px;transition:.2s;user-select:none}
+.radio-opt.sel{border-color:var(--acc);color:var(--acc);background:rgba(232,255,71,.08)}
+
+/* BUTTONS */
+.btn{padding:12px 28px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:.2s;letter-spacing:.5px}
+.btn-primary{background:var(--acc);color:#000}
+.btn-primary:hover{background:#d4e83f}
+.btn-primary:disabled{background:var(--bdr);color:var(--mut);cursor:not-allowed}
+.btn-outline{background:transparent;border:1px solid var(--bdr);color:var(--txt)}
+.btn-outline:hover{border-color:var(--acc);color:var(--acc)}
+.btn-danger{background:var(--acc2);color:#fff}
+.btn-sm{padding:8px 16px;font-size:12px}
+.btn-row{display:flex;gap:12px;margin-top:24px;flex-wrap:wrap}
+
+/* CARDS */
+.card{background:var(--surf);border:1px solid var(--bdr);border-radius:10px;padding:20px;margin-bottom:16px}
+.card-title{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1.5px;color:var(--acc);margin-bottom:12px}
+.stat-row{display:flex;gap:0;flex-wrap:wrap;margin-bottom:16px}
+.stat{flex:1;min-width:120px;padding:16px;background:var(--surf2);border-right:1px solid var(--bdr);text-align:center}
+.stat:last-child{border-right:none}
+.stat:first-child{border-radius:8px 0 0 8px}
+.stat:last-child{border-radius:0 8px 8px 0}
+.stat-val{font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--acc)}
+.stat-lbl{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+
+/* PROFILE SUMMARY */
+.profile-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.profile-item{background:var(--surf2);border-radius:8px;padding:14px;border-left:3px solid var(--acc)}
+.profile-item .pi-val{font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--txt)}
+.profile-item .pi-lbl{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px}
+
+/* ELEVATION CHART */
+#elevChart{width:100%;height:180px;margin:16px 0}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--surf2);color:var(--mut);text-transform:uppercase;font-size:11px;letter-spacing:.5px;padding:10px 12px;text-align:left;border-bottom:1px solid var(--bdr)}
+td{padding:10px 12px;border-bottom:1px solid rgba(42,42,48,.6)}
+tr:hover td{background:rgba(255,255,255,.02)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.dot-g{background:var(--grn)} .dot-y{background:var(--warn)} .dot-r{background:var(--red)}
+
+/* NUTR BADGE */
+.nutr-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;letter-spacing:.5px}
+.nb-g{background:rgba(74,222,128,.15);color:var(--grn);border:1px solid rgba(74,222,128,.3)}
+.nb-y{background:rgba(255,149,0,.15);color:var(--warn);border:1px solid rgba(255,149,0,.3)}
+.nb-r{background:rgba(248,113,113,.15);color:var(--red);border:1px solid rgba(248,113,113,.3)}
+
+/* NUTRITION BLOCKS */
+.nutr-timeline{position:relative;padding-left:24px}
+.nutr-timeline::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--bdr)}
+.nutr-event{position:relative;margin-bottom:16px;padding-left:20px}
+.nutr-event::before{content:'';position:absolute;left:-24px;top:50%;transform:translateY(-50%);width:10px;height:10px;border-radius:50%;border:2px solid var(--acc);background:var(--bg)}
+.nutr-event.prio::before{background:var(--grn);border-color:var(--grn)}
+.nutr-event.warn::before{background:var(--warn);border-color:var(--warn)}
+.nutr-event.alert::before{background:var(--red);border-color:var(--red)}
+.ne-header{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.ne-time{font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--acc);min-width:80px}
+.ne-km{font-size:12px;color:var(--mut)}
+.ne-body{font-size:13px;color:var(--txt)}
+.ne-detail{font-size:12px;color:var(--mut);margin-top:2px}
+
+/* MACROS BAR */
+.macro-bar{display:flex;height:8px;border-radius:4px;overflow:hidden;margin:8px 0}
+.mb-g{background:#38bdf8} .mb-p{background:#a78bfa} .mb-l{background:#fb923c}
+.macro-legend{display:flex;gap:16px;font-size:11px;color:var(--mut)}
+.ml-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+
+/* SECTION TITLE */
+.section-title{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;color:var(--txt);margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--bdr)}
+
+/* ALERT BOX */
+.alert-box{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);border-radius:8px;padding:14px 16px;margin-bottom:12px}
+.alert-box.warn{background:rgba(255,149,0,.08);border-color:rgba(255,149,0,.3)}
+.alert-box.info{background:rgba(56,189,248,.08);border-color:rgba(56,189,248,.3)}
+.ab-title{font-weight:600;font-size:13px;margin-bottom:4px}
+.ab-body{font-size:12px;color:var(--mut);line-height:1.5}
+
+/* EXPORT */
+.export-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}
+.export-card{background:var(--surf);border:1px solid var(--bdr);border-radius:10px;padding:24px;text-align:center}
+.export-card:hover{border-color:var(--acc)}
+.export-icon{font-size:36px;margin-bottom:12px}
+.export-title{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1.5px;margin-bottom:6px}
+.export-desc{font-size:12px;color:var(--mut);margin-bottom:16px;line-height:1.5}
+
+/* LOADING */
+.loading{display:none;text-align:center;padding:48px}
+.loading.show{display:block}
+.spinner{width:40px;height:40px;border:3px solid var(--bdr);border-top-color:var(--acc);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* EMPTY STATE */
+.empty-state{text-align:center;padding:64px 20px;color:var(--mut)}
+.empty-icon{font-size:48px;margin-bottom:16px;opacity:.4}
+
+/* SLOPE BADGE */
+.slope{padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.slope-flat{background:rgba(74,222,128,.1);color:var(--grn)}
+.slope-up-s{background:rgba(255,149,0,.1);color:var(--warn)}
+.slope-up-r{background:rgba(248,113,113,.1);color:var(--red)}
+.slope-dn-s{background:rgba(56,189,248,.1);color:var(--blue)}
+.slope-dn-r{background:rgba(167,139,250,.1);color:var(--purp)}
+
+/* PHASE INDICATOR */
+.phase-bar{display:flex;height:20px;border-radius:6px;overflow:hidden;margin:8px 0}
+.phase-seg{display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:rgba(0,0,0,.7)}
+
+/* FATIGUE CURVE */
+#fatigueChart{width:100%;height:120px}
+
+/* CHECKLIST */
+.checklist{list-style:none;margin-top:12px}
+.checklist li{padding:10px 0;border-bottom:1px solid rgba(42,42,48,.6);display:flex;align-items:center;gap:10px;font-size:13px}
+.checklist li::before{content:'☐';font-size:16px;color:var(--acc);flex-shrink:0}
+
+@media(max-width:600px){
+  .form-grid{grid-template-columns:1fr}
+  .profile-grid{grid-template-columns:1fr 1fr}
+  .export-grid{grid-template-columns:1fr}
+  .stat{min-width:80px}
+  .tab{padding:12px 12px;font-size:12px}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div>
+      <h1>NUTRITRAIL GPX</h1>
+      <div class="header-sub">Trail · Ultra · Nutrition</div>
+    </div>
+  </div>
+  <div id="statusBadge" class="badge">En attente</div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="showTab('config')">⚙️ Config</button>
+  <button class="tab" onclick="showTab('profil')" id="tab-profil">👤 Profil & Course</button>
+  <button class="tab" onclick="showTab('passage')" id="tab-passage">🕐 Temps de Passage</button>
+  <button class="tab" onclick="showTab('nutrition')" id="tab-nutrition">🥤 Nutrition</button>
+  <button class="tab" onclick="showTab('export')" id="tab-export">📄 Export PDF</button>
+</div>
+
+<!-- ============================================================ CONFIG ============================================================ -->
+<div id="tab-config" class="tab-content active">
+
+  <div class="upload-zone" id="dropZone" onclick="document.getElementById('gpxInput').click()"
+       ondrop="handleDrop(event)" ondragover="e=>{e.preventDefault();dropZone.classList.add('drag')}"
+       ondragleave="dropZone.classList.remove('drag')">
+    <div class="upload-icon" id="uploadIcon">📍</div>
+    <div class="upload-title" id="uploadTitle">Importer un fichier GPX</div>
+    <div class="upload-sub" id="uploadSub">Glissez-déposez ou cliquez pour sélectionner</div>
+  </div>
+  <input type="file" id="gpxInput" accept=".gpx" onchange="loadGPX(this.files[0])">
+
+  <div class="form-grid" style="margin-top:24px">
+    <div class="form-group">
+      <label>Temps estimé total</label>
+      <input type="text" id="fTps" placeholder="ex: 4h30 ou 4:30" value="">
+      <div class="hint">Format : 4h30 ou 4:30</div>
+    </div>
+    <div class="form-group">
+      <label>Poids corporel (kg)</label>
+      <input type="number" id="fPoids" value="70" min="40" max="120">
+    </div>
+    <div class="form-group">
+      <label>Objectif calorique (kcal/h)</label>
+      <input type="number" id="fKcalH" value="200" min="100" max="500">
+      <div class="hint">Trail léger ~150 | standard ~200 | ultra ~250 kcal/h</div>
+    </div>
+    <div class="form-group">
+      <label>Intervalle hydratation (min)</label>
+      <input type="number" id="fHydrat" value="20" min="10" max="60">
+    </div>
+    <div class="form-group">
+      <label>Glucides %</label>
+      <input type="number" id="fGlu" value="65" min="40" max="80">
+    </div>
+    <div class="form-group">
+      <label>Protéines %</label>
+      <input type="number" id="fProt" value="15" min="5" max="30">
+    </div>
+    <div class="form-group">
+      <label>Tolérance digestive</label>
+      <div class="radio-group" id="rDigest">
+        <span class="radio-opt" onclick="selectRadio('rDigest',this,'faible')">Faible</span>
+        <span class="radio-opt sel" onclick="selectRadio('rDigest',this,'normale')" data-val="normale">Normale</span>
+        <span class="radio-opt" onclick="selectRadio('rDigest',this,'bonne')">Bonne</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Niveau d'expérience</label>
+      <div class="radio-group" id="rNiveau">
+        <span class="radio-opt" onclick="selectRadio('rNiveau',this,'debutant')">Débutant</span>
+        <span class="radio-opt sel" onclick="selectRadio('rNiveau',this,'confirme')" data-val="confirme">Confirmé</span>
+        <span class="radio-opt" onclick="selectRadio('rNiveau',this,'ultra')">Ultra</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Conditions météo</label>
+      <div class="radio-group" id="rMeteo">
+        <span class="radio-opt" onclick="selectRadio('rMeteo',this,'froid')">❄️ Froid</span>
+        <span class="radio-opt sel" onclick="selectRadio('rMeteo',this,'tempere')" data-val="tempere">🌤 Tempéré</span>
+        <span class="radio-opt" onclick="selectRadio('rMeteo',this,'chaud')">☀️ Chaud</span>
+      </div>
+    </div>
+    <div class="form-group full">
+      <label>Nom de la course</label>
+      <input type="text" id="fNomCourse" placeholder="ex: Trail des Crêtes 2026">
+    </div>
+    <div class="form-group full">
+      <label>Produits disponibles</label>
+      <textarea id="fProduits" rows="3" placeholder="ex: Gels SIS (60g), Barres Mulebar, Boisson glucidique maison, Bananes, fromage blanc..."></textarea>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" id="btnGenerer" onclick="generer()" disabled>
+      ⚡ Générer le plan
+    </button>
+    <button class="btn btn-outline" onclick="resetApp()">🔄 Réinitialiser</button>
+  </div>
+
+  <div class="loading" id="loadingDiv">
+    <div class="spinner"></div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;color:var(--acc)">CALCUL EN COURS</div>
+    <div style="font-size:13px;color:var(--mut);margin-top:8px" id="loadingMsg">Analyse du profil GPX...</div>
+  </div>
+
+</div>
+
+<!-- ============================================================ PROFIL ============================================================ -->
+<div id="tab-profil" class="tab-content">
+  <div id="profilContent">
+    <div class="empty-state">
+      <div class="empty-icon">📍</div>
+      <div>Importez un GPX et générez le plan pour voir le profil</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ PASSAGE ============================================================ -->
+<div id="tab-passage" class="tab-content">
+  <div id="passageContent">
+    <div class="empty-state">
+      <div class="empty-icon">🕐</div>
+      <div>Générez le plan pour voir les temps de passage</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ NUTRITION ============================================================ -->
+<div id="tab-nutrition" class="tab-content">
+  <div id="nutritionContent">
+    <div class="empty-state">
+      <div class="empty-icon">🥤</div>
+      <div>Générez le plan pour voir le protocole nutritionnel</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ EXPORT ============================================================ -->
+<div id="tab-export" class="tab-content">
+  <div id="exportContent">
+    <div class="empty-state">
+      <div class="empty-icon">📄</div>
+      <div>Générez le plan pour activer l'export PDF</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+let gpxData = null;      // points bruts {lat,lon,ele,dist}
+let courseData = null;   // données calculées de course
+let planData = null;     // plan nutrition complet
+let config = {};
+
+// ============================================================
+// UTILS
+// ============================================================
+function showTab(name) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function selectRadio(groupId, el, val) {
+  document.querySelectorAll('#' + groupId + ' .radio-opt').forEach(o => {
+    o.classList.remove('sel');
+    o.removeAttribute('data-val');
+  });
+  el.classList.add('sel');
+  el.setAttribute('data-val', val);
+}
+
+function getRadio(groupId) {
+  const el = document.querySelector('#' + groupId + ' .radio-opt.sel');
+  return el ? (el.getAttribute('data-val') || el.textContent.trim().toLowerCase()) : '';
+}
+
+function parseTps(str) {
+  if (!str) return 0;
+  str = str.trim().replace(',', '.');
+  const m1 = str.match(/^(\d+)[h:](\d+)$/i);
+  if (m1) return parseInt(m1[1]) * 60 + parseInt(m1[2]);
+  const m2 = str.match(/^(\d+)h?$/i);
+  if (m2) return parseInt(m2[1]) * 60;
+  return parseFloat(str) * 60 || 0;
+}
+
+function fmtTime(mins) {
+  const h = Math.floor(mins / 60);
+  const m = Math.round(mins % 60);
+  return h + 'h' + String(m).padStart(2, '0');
+}
+
+function fmtDist(m) {
+  return m >= 1000 ? (m / 1000).toFixed(1) + ' km' : Math.round(m) + ' m';
+}
+
+function deg2rad(d) { return d * Math.PI / 180; }
+
+function haversine(a, b) {
+  const R = 6371000;
+  const dLat = deg2rad(b.lat - a.lat);
+  const dLon = deg2rad(b.lon - a.lon);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(deg2rad(a.lat)) * Math.cos(deg2rad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+}
+
+// ============================================================
+// GPX PARSING
+// ============================================================
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if (f && f.name.endsWith('.gpx')) loadGPX(f);
+}
+
+function loadGPX(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(e.target.result, 'text/xml');
+      const trkpts = xml.querySelectorAll('trkpt,rtept,wpt');
+      if (!trkpts.length) { alert('Fichier GPX vide ou invalide'); return; }
+
+      let points = [];
+      let cumDist = 0;
+      let prev = null;
+
+      trkpts.forEach(pt => {
+        const lat = parseFloat(pt.getAttribute('lat'));
+        const lon = parseFloat(pt.getAttribute('lon'));
+        const eleEl = pt.querySelector('ele');
+        const ele = eleEl ? parseFloat(eleEl.textContent) : 0;
+        const timeEl = pt.querySelector('time');
+        const time = timeEl ? timeEl.textContent : null;
+
+        const p = { lat, lon, ele, time };
+        if (prev) {
+          const d = haversine(prev, p);
+          cumDist += d;
+          p.dist = cumDist;
+          p.segDist = d;
+          p.dEle = ele - prev.ele;
+          p.slope = d > 0 ? (ele - prev.ele) / d * 100 : 0;
+        } else {
+          p.dist = 0; p.segDist = 0; p.dEle = 0; p.slope = 0;
+        }
+        points.push(p);
+        prev = p;
+      });
+
+      gpxData = points;
+
+      // Décimer si trop de points (>2000)
+      if (gpxData.length > 2000) {
+        const factor = Math.ceil(gpxData.length / 1000);
+        gpxData = gpxData.filter((_, i) => i % factor === 0 || i === gpxData.length - 1);
+        // Recalculer distances cumulées
+        let cd = 0;
+        gpxData.forEach((p, i) => {
+          if (i === 0) { p.dist = 0; return; }
+          cd += p.segDist * factor;
+          p.dist = cd;
+        });
+      }
+
+      const totalDist = gpxData[gpxData.length - 1].dist;
+      const eles = gpxData.map(p => p.ele);
+      let dpPos = 0, dpNeg = 0;
+      gpxData.forEach(p => {
+        if (p.dEle > 0) dpPos += p.dEle;
+        else dpNeg += Math.abs(p.dEle);
+      });
+
+      // Nom depuis fichier
+      const nameEl = xml.querySelector('name');
+      if (nameEl && !document.getElementById('fNomCourse').value) {
+        document.getElementById('fNomCourse').value = nameEl.textContent.trim();
+      }
+
+      // UI update
+      document.getElementById('uploadIcon').textContent = '✅';
+      document.getElementById('uploadTitle').textContent = file.name.replace('.gpx', '');
+      document.getElementById('uploadSub').textContent = `${(totalDist/1000).toFixed(1)} km · D+ ${Math.round(dpPos)}m · ${points.length} points`;
+      document.getElementById('dropZone').classList.add('has-file');
+      document.getElementById('btnGenerer').disabled = false;
+      document.getElementById('statusBadge').textContent = 'GPX chargé';
+      document.getElementById('statusBadge').classList.add('active');
+
+    } catch(err) {
+      alert('Erreur de lecture GPX : ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ============================================================
+// CALCUL COURSE
+// ============================================================
+function classifySlope(s) {
+  if (s > 15) return 'up-r';
+  if (s > 5) return 'up-s';
+  if (s < -15) return 'dn-r';
+  if (s < -5) return 'dn-s';
+  return 'flat';
+}
+
+function slopeCoeff(s) {
+  // Coefficient vitesse relatif selon pente (1 = allure normale plat)
+  if (s > 25) return 0.28;
+  if (s > 20) return 0.35;
+  if (s > 15) return 0.45;
+  if (s > 10) return 0.58;
+  if (s > 5) return 0.75;
+  if (s > 2) return 0.90;
+  if (s > -5) return 1.0;
+  if (s > -10) return 1.05;
+  if (s > -15) return 0.92;
+  if (s > -20) return 0.80;
+  return 0.70; // descente très raide = protection genoux
+}
+
+function fatigueCoeff(ratio, niveau) {
+  // ratio = position / distance totale (0-1)
+  // Déclin progressif selon niveau
+  const thresholds = {
+    debutant: { t1: 0.4, t2: 0.65, d1: 0.05, d2: 0.15, d3: 0.30 },
+    confirme: { t1: 0.5, t2: 0.70, d1: 0.03, d2: 0.10, d3: 0.22 },
+    ultra:     { t1: 0.50, t2: 0.65, d1: 0.02, d2: 0.12, d3: 0.28 }
+  };
+  const t = thresholds[niveau] || thresholds.confirme;
+  if (ratio < t.t1) return 1 - ratio * t.d1;
+  if (ratio < t.t2) return (1 - t.t1 * t.d1) - (ratio - t.t1) * t.d2 / (t.t2 - t.t1);
+  return Math.max(0.55, (1 - t.t1 * t.d1) - t.d2 - (ratio - t.t2) * t.d3 / (1 - t.t2));
+}
+
+function computeCourse(tpsTotal, niveau) {
+  const pts = gpxData;
+  const totalDist = pts[pts.length - 1].dist;
+  const totalMins = tpsTotal;
+
+  // Calcul poids relatif de chaque segment (effort normalisé)
+  let totalWeight = 0;
+  const weights = pts.map((p, i) => {
+    if (i === 0) return 0;
+    const sc = slopeCoeff(p.slope);
+    const ratio = p.dist / totalDist;
+    const fc = fatigueCoeff(ratio, niveau);
+    const w = p.segDist / (sc * fc);
+    totalWeight += w;
+    return w;
+  });
+
+  // Répartir le temps total sur les segments
+  let cumMins = 0;
+  const result = pts.map((p, i) => {
+    if (i === 0) return { ...p, timeMins: 0 };
+    const segMins = (weights[i] / totalWeight) * totalMins;
+    cumMins += segMins;
+    return { ...p, timeMins: cumMins, segMins };
+  });
+
+  // Calculer D+ D- total
+  let dpPos = 0, dpNeg = 0;
+  pts.forEach(p => {
+    if (p.dEle > 0) dpPos += p.dEle;
+    else dpNeg += Math.abs(p.dEle);
+  });
+
+  return {
+    points: result,
+    totalDist,
+    totalMins,
+    dpPos: Math.round(dpPos),
+    dpNeg: Math.round(dpNeg),
+    eleMin: Math.min(...pts.map(p => p.ele)),
+    eleMax: Math.max(...pts.map(p => p.ele)),
+    eles: pts.map(p => p.ele)
+  };
+}
+
+// ============================================================
+// PLAN NUTRITION
+// ============================================================
+function buildNutritionPlan(course, cfg) {
+  const { totalDist, totalMins, points } = course;
+  const isUltra = totalDist > 50000 || totalMins > 360;
+  const kcalH = cfg.kcalH;
+  const totalKcal = (totalMins / 60) * kcalH;
+
+  // Hydratation : plus en chaud
+  const hydratFactor = cfg.meteo === 'chaud' ? 1.4 : cfg.meteo === 'froid' ? 0.8 : 1.0;
+  const mlPerHour = 500 * hydratFactor;
+
+  // Générer des événements nutritionnels
+  const events = [];
+  const intervalMins = cfg.hydratMins;
+  let nextEvent = 10; // premiers 10 min = départ
+  let eventIdx = 0;
+
+  // Fonction pour trouver le point le plus proche d'un temps
+  function pointAtTime(targetMins) {
+    let best = points[0];
+    for (const p of points) {
+      if (Math.abs(p.timeMins - targetMins) < Math.abs(best.timeMins - targetMins)) best = p;
+    }
+    return best;
+  }
+
+  // Avant départ
+  events.push({
+    type: 'prerace',
+    timeMins: -30,
+    km: 0,
+    label: 'Pré-départ (-30 min)',
+    action: 'Repas riche en glucides, bien hydraté',
+    detail: `200-250 kcal glucides complexes · 500 ml eau · Café si habitude`,
+    priority: 'prio',
+    kcal: 0, eau_ml: 500
+  });
+
+  // Pendant la course
+  while (nextEvent <= totalMins + intervalMins) {
+    const p = pointAtTime(nextEvent);
+    const ratio = nextEvent / totalMins;
+    const isLastThird = ratio > 0.66;
+    const isLastFifth = ratio > 0.80;
+
+    // Décider quoi manger selon le moment
+    let action, detail, kcal, eau_ml, priority;
+    const kcalPerEvent = (kcalH / 60) * intervalMins;
+
+    if (nextEvent <= 30) {
+      // Début : démarrage doux, pas encore d'absorption
+      action = 'Hydratation + démarrage glucides';
+      detail = `1 gorgée toutes les 5 min · ${Math.round(kcalPerEvent * 0.5)} kcal gel ou boisson`;
+      kcal = Math.round(kcalPerEvent * 0.5);
+      eau_ml = Math.round(mlPerHour / 60 * intervalMins);
+      priority = 'prio';
+    } else if (isLastFifth) {
+      // Dernier 20% : liquides uniquement
+      action = isUltra ? 'Bouillon salé + liquide sucré' : 'Gel + eau · Format liquide UNIQUEMENT';
+      detail = `Fenêtre digestive réduite · ${Math.round(kcalPerEvent * 0.8)} kcal liquide`;
+      kcal = Math.round(kcalPerEvent * 0.8);
+      eau_ml = Math.round(mlPerHour / 60 * intervalMins * 1.1);
+      priority = 'alert';
+    } else if (isLastThird) {
+      // Dernier tiers : semi-liquide
+      action = isUltra ? 'Aliment solide léger + gel + eau' : 'Gel ou barre molle + eau';
+      detail = `${Math.round(kcalPerEvent)} kcal · Surveiller nausées · Électrolytes`;
+      kcal = Math.round(kcalPerEvent);
+      eau_ml = Math.round(mlPerHour / 60 * intervalMins);
+      priority = 'warn';
+    } else if (p && (classifySlope(p.slope) === 'dn-s' || classifySlope(p.slope) === 'flat')) {
+      // Descente ou plat : fenêtre digestive idéale
+      action = 'Fenêtre digestive ✓ — Apport solide';
+      detail = `Barre, pâtes de fruit, banane · ${Math.round(kcalPerEvent)} kcal`;
+      kcal = Math.round(kcalPerEvent);
+      eau_ml = Math.round(mlPerHour / 60 * intervalMins);
+      priority = 'prio';
+    } else {
+      // Montée ou autre
+      action = 'Gel ou boisson + eau';
+      detail = `${Math.round(kcalPerEvent)} kcal glucides rapides`;
+      kcal = Math.round(kcalPerEvent);
+      eau_ml = Math.round(mlPerHour / 60 * intervalMins);
+      priority = 'normal';
+    }
+
+    // Alerte Na après 2h en chaud
+    let alertNa = '';
+    if (nextEvent > 120 && cfg.meteo === 'chaud') alertNa = ' · +sel (électrolytes)';
+
+    events.push({
+      timeMins: nextEvent,
+      km: p ? p.dist / 1000 : 0,
+      slope: p ? p.slope : 0,
+      label: fmtTime(nextEvent) + (p ? ` — km ${(p.dist/1000).toFixed(1)}` : ''),
+      action: action + alertNa,
+      detail,
+      kcal,
+      eau_ml: Math.round(eau_ml),
+      priority,
+      ratio
+    });
+
+    nextEvent += intervalMins;
+    eventIdx++;
+    if (eventIdx > 100) break;
+  }
+
+  // Après course
+  events.push({
+    type: 'postrace',
+    timeMins: totalMins + 30,
+    km: totalDist / 1000,
+    label: 'Post-arrivée (+30 min)',
+    action: 'Récupération CRITIQUE — Fenêtre anabolique 30 min',
+    detail: `25-30g protéines · 60-80g glucides rapides · 500 ml eau + électrolytes`,
+    priority: 'prio',
+    kcal: Math.round(totalKcal * 0.08),
+    eau_ml: 500
+  });
+
+  // Totaux
+  const totalKcalPlan = events.filter(e => e.timeMins >= 0 && e.timeMins <= totalMins)
+    .reduce((s, e) => s + (e.kcal || 0), 0);
+  const totalEau = events.filter(e => e.timeMins >= 0 && e.timeMins <= totalMins)
+    .reduce((s, e) => s + (e.eau_ml || 0), 0);
+
+  return {
+    events,
+    totalKcalPlan,
+    totalKcal: Math.round(totalKcal),
+    totalEau: Math.round(totalEau / 1000 * 10) / 10,
+    isUltra,
+    gluPct: cfg.gluPct,
+    protPct: cfg.protPct,
+    lipPct: 100 - cfg.gluPct - cfg.protPct
+  };
+}
+
+// ============================================================
+// RENDER PROFIL
+// ============================================================
+function renderProfil() {
+  const c = courseData;
+  const cfg = config;
+  const nomCourse = document.getElementById('fNomCourse').value || 'Course Trail';
+
+  let html = `
+  <div class="section-title">${nomCourse.toUpperCase()}</div>
+
+  <div class="stat-row">
+    <div class="stat"><div class="stat-val">${(c.totalDist/1000).toFixed(1)}</div><div class="stat-lbl">km</div></div>
+    <div class="stat"><div class="stat-val">+${c.dpPos}</div><div class="stat-lbl">D+ (m)</div></div>
+    <div class="stat"><div class="stat-val">-${c.dpNeg}</div><div class="stat-lbl">D- (m)</div></div>
+    <div class="stat"><div class="stat-val">${fmtTime(c.totalMins)}</div><div class="stat-lbl">Temps est.</div></div>
+    <div class="stat"><div class="stat-val">${Math.round(c.eleMin)}</div><div class="stat-lbl">Alt. min (m)</div></div>
+    <div class="stat"><div class="stat-val">${Math.round(c.eleMax)}</div><div class="stat-lbl">Alt. max (m)</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Profil altimétrique</div>
+    <canvas id="elevChart"></canvas>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--mut);margin-top:8px">
+      <span class="slope flat" style="border-radius:4px">Plat</span>
+      <span class="slope up-s" style="border-radius:4px">Montée douce</span>
+      <span class="slope up-r" style="border-radius:4px">Montée raide</span>
+      <span class="slope dn-s" style="border-radius:4px">Descente douce</span>
+      <span class="slope dn-r" style="border-radius:4px">Descente raide</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Paramètres athlète</div>
+    <div class="profile-grid">
+      <div class="profile-item"><div class="pi-val">${cfg.poids} kg</div><div class="pi-lbl">Poids</div></div>
+      <div class="profile-item"><div class="pi-val">${cfg.kcalH} kcal/h</div><div class="pi-lbl">Objectif calorique</div></div>
+      <div class="profile-item"><div class="pi-val">${cfg.hydratMins} min</div><div class="pi-lbl">Intervalle hydrat.</div></div>
+      <div class="profile-item"><div class="pi-val">${cfg.digest}</div><div class="pi-lbl">Tolérance digest.</div></div>
+      <div class="profile-item"><div class="pi-val">${cfg.niveau}</div><div class="pi-lbl">Niveau</div></div>
+      <div class="profile-item"><div class="pi-val">${cfg.meteo}</div><div class="pi-lbl">Météo</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Répartition macronutriments</div>
+    <div class="macro-bar">
+      <div class="mb-g" style="flex:${cfg.gluPct}"></div>
+      <div class="mb-p" style="flex:${cfg.protPct}"></div>
+      <div class="mb-l" style="flex:${100 - cfg.gluPct - cfg.protPct}"></div>
+    </div>
+    <div class="macro-legend">
+      <span><span class="ml-dot" style="background:#38bdf8"></span>Glucides ${cfg.gluPct}%</span>
+      <span><span class="ml-dot" style="background:#a78bfa"></span>Protéines ${cfg.protPct}%</span>
+      <span><span class="ml-dot" style="background:#fb923c"></span>Lipides ${100 - cfg.gluPct - cfg.protPct}%</span>
+    </div>
+    ${cfg.produits ? `<div style="margin-top:12px;font-size:13px;color:var(--mut)"><b style="color:var(--txt)">Produits prévus :</b> ${cfg.produits}</div>` : ''}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Courbe de fatigue modélisée</div>
+    <canvas id="fatigueChart"></canvas>
+    <div style="font-size:12px;color:var(--mut);margin-top:8px">Modèle : déclin progressif selon profil "${cfg.niveau}" · Appliqué aux temps de passage</div>
+  </div>
+  `;
+
+  document.getElementById('profilContent').innerHTML = html;
+
+  // Draw elevation chart
+  requestAnimationFrame(() => {
+    drawElevChart();
+    drawFatigueChart();
+  });
+}
+
+function drawElevChart() {
+  const canvas = document.getElementById('elevChart');
+  if (!canvas || !courseData) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth * 2;
+  canvas.height = 360;
+  const W = canvas.width, H = canvas.height;
+  const pts = courseData.points;
+  const eles = pts.map(p => p.ele);
+  const eMin = Math.min(...eles) - 20;
+  const eMax = Math.max(...eles) + 20;
+  const distMax = pts[pts.length - 1].dist;
+  const pad = { t: 20, b: 30, l: 50, r: 20 };
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(42,42,48,0.8)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + (H - pad.t - pad.b) * i / 4;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+    const eLbl = Math.round(eMax - (eMax - eMin) * i / 4);
+    ctx.fillStyle = 'rgba(107,107,120,0.8)';
+    ctx.font = '18px DM Sans';
+    ctx.fillText(eLbl + 'm', 0, y + 6);
+  }
+
+  // Fill under curve (colored by slope)
+  pts.forEach((p, i) => {
+    if (i === 0) return;
+    const prev = pts[i - 1];
+    const x1 = pad.l + (prev.dist / distMax) * (W - pad.l - pad.r);
+    const x2 = pad.l + (p.dist / distMax) * (W - pad.l - pad.r);
+    const y1 = pad.t + (1 - (prev.ele - eMin) / (eMax - eMin)) * (H - pad.t - pad.b);
+    const y2 = pad.t + (1 - (p.ele - eMin) / (eMax - eMin)) * (H - pad.t - pad.b);
+    const yBase = H - pad.b;
+    const cls = classifySlope(p.slope);
+    const colors = {
+      'flat': 'rgba(74,222,128,0.15)',
+      'up-s': 'rgba(255,149,0,0.2)',
+      'up-r': 'rgba(248,113,113,0.25)',
+      'dn-s': 'rgba(56,189,248,0.15)',
+      'dn-r': 'rgba(167,139,250,0.2)'
+    };
+    ctx.fillStyle = colors[cls] || 'rgba(232,255,71,0.1)';
+    ctx.beginPath();
+    ctx.moveTo(x1, yBase);
+    ctx.lineTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.lineTo(x2, yBase);
+    ctx.closePath();
+    ctx.fill();
+  });
+
+  // Line
+  ctx.strokeStyle = '#e8ff47';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  pts.forEach((p, i) => {
+    const x = pad.l + (p.dist / distMax) * (W - pad.l - pad.r);
+    const y = pad.t + (1 - (p.ele - eMin) / (eMax - eMin)) * (H - pad.t - pad.b);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // X labels
+  ctx.fillStyle = 'rgba(107,107,120,0.8)';
+  ctx.font = '18px DM Sans';
+  for (let km = 0; km <= distMax / 1000; km += Math.ceil(distMax / 1000 / 6)) {
+    const x = pad.l + (km * 1000 / distMax) * (W - pad.l - pad.r);
+    ctx.fillText(km + 'km', x - 15, H - 5);
+  }
+
+  canvas.style.height = '180px';
+}
+
+function drawFatigueChart() {
+  const canvas = document.getElementById('fatigueChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth * 2;
+  canvas.height = 240;
+  const W = canvas.width, H = canvas.height;
+  const pad = { t: 10, b: 20, l: 40, r: 20 };
+  const steps = 100;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(42,42,48,0.8)';
+  ctx.lineWidth = 1;
+  ['100%','80%','60%'].forEach((lbl, i) => {
+    const y = pad.t + (H - pad.t - pad.b) * i / 2;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+    ctx.fillStyle = 'rgba(107,107,120,0.8)';
+    ctx.font = '16px DM Sans';
+    ctx.fillText(lbl, 0, y + 5);
+  });
+
+  // Gradient fill
+  const grad = ctx.createLinearGradient(pad.l, 0, W - pad.r, 0);
+  grad.addColorStop(0, 'rgba(74,222,128,0.3)');
+  grad.addColorStop(0.5, 'rgba(255,149,0,0.3)');
+  grad.addColorStop(1, 'rgba(248,113,113,0.3)');
+
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(pad.l, H - pad.b);
+  for (let i = 0; i <= steps; i++) {
+    const ratio = i / steps;
+    const fc = fatigueCoeff(ratio, config.niveau);
+    const x = pad.l + ratio * (W - pad.l - pad.r);
+    const y = pad.t + (1 - (fc - 0.5) / 0.55) * (H - pad.t - pad.b);
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(W - pad.r, H - pad.b);
+  ctx.closePath();
+  ctx.fill();
+
+  // Line
+  ctx.strokeStyle = '#e8ff47';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let i = 0; i <= steps; i++) {
+    const ratio = i / steps;
+    const fc = fatigueCoeff(ratio, config.niveau);
+    const x = pad.l + ratio * (W - pad.l - pad.r);
+    const y = pad.t + (1 - (fc - 0.5) / 0.55) * (H - pad.t - pad.b);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  canvas.style.height = '120px';
+}
+
+// ============================================================
+// RENDER PASSAGE
+// ============================================================
+function renderPassage() {
+  const c = courseData;
+  const pts = c.points;
+  const totalDist = c.totalDist;
+
+  // Sélectionner points à afficher (chaque km + points remarquables)
+  const step = Math.max(1, Math.floor(totalDist / 1000));
+  const displayed = [];
+  let nextKm = 0;
+
+  for (let km = 0; km <= totalDist / 1000; km += step) {
+    const targetDist = km * 1000;
+    let best = pts[0];
+    for (const p of pts) {
+      if (Math.abs(p.dist - targetDist) < Math.abs(best.dist - targetDist)) best = p;
+    }
+    if (!displayed.find(d => d === best)) displayed.push(best);
+  }
+  // Toujours inclure le dernier point
+  if (!displayed.includes(pts[pts.length - 1])) displayed.push(pts[pts.length - 1]);
+
+  const slopeNames = { flat: 'Plat', 'up-s': 'Montée', 'up-r': '⚡ Raide', 'dn-s': 'Descente', 'dn-r': '⬇️ Raide' };
+  const slopeCls = { flat: 'slope-flat', 'up-s': 'slope-up-s', 'up-r': 'slope-up-r', 'dn-s': 'slope-dn-s', 'dn-r': 'slope-dn-r' };
+
+  let rows = displayed.map(p => {
+    const cls = classifySlope(p.slope);
+    const ratio = p.dist / totalDist;
+    const fc = Math.round(fatigueCoeff(ratio, config.niveau) * 100);
+    const allure = p.timeMins > 0 ? Math.round((p.timeMins / (p.dist / 1000))).toString().replace(/(\d{2})$/, ':$1') : '—';
+    return `<tr>
+      <td><b>${(p.dist/1000).toFixed(1)} km</b></td>
+      <td>${fmtTime(p.timeMins)}</td>
+      <td>${Math.round(p.ele)} m</td>
+      <td>${p.slope > 0 ? '+' : ''}${p.slope.toFixed(1)}%</td>
+      <td><span class="slope ${slopeCls[cls]}">${slopeNames[cls] || cls}</span></td>
+      <td>${fc}%</td>
+    </tr>`;
+  }).join('');
+
+  // Analyse des zones
+  let zoneFlat = 0, zoneUp = 0, zoneDn = 0;
+  pts.forEach(p => {
+    const cls = classifySlope(p.slope);
+    if (cls === 'flat') zoneFlat += p.segDist;
+    else if (cls.startsWith('up')) zoneUp += p.segDist;
+    else zoneDn += p.segDist;
+  });
+  const zF = Math.round(zoneFlat / totalDist * 100);
+  const zU = Math.round(zoneUp / totalDist * 100);
+  const zD = 100 - zF - zU;
+
+  let html = `
+  <div class="section-title">Temps de Passage Prévisionnels</div>
+
+  <div class="card">
+    <div class="card-title">Répartition du terrain</div>
+    <div class="phase-bar" style="height:24px">
+      <div class="phase-seg" style="flex:${zF};background:rgba(74,222,128,0.6)">${zF}%</div>
+      <div class="phase-seg" style="flex:${zU};background:rgba(255,149,0,0.6)">${zU}%</div>
+      <div class="phase-seg" style="flex:${zD};background:rgba(56,189,248,0.6)">${zD}%</div>
+    </div>
+    <div style="display:flex;gap:20px;font-size:11px;color:var(--mut);margin-top:6px">
+      <span>🟢 Plat ${zF}%</span>
+      <span>🟡 Montée ${zU}%</span>
+      <span>🔵 Descente ${zD}%</span>
+    </div>
+    <div style="font-size:12px;color:var(--mut);margin-top:12px">
+      Coefficient de fatigue appliqué : déclin progressif modèle <b style="color:var(--txt)">${config.niveau}</b>
+    </div>
+  </div>
+
+  ${c.totalMins > 360 ? `<div class="alert-box warn">
+    <div class="ab-title">⚠️ Ultra-trail détecté (${fmtTime(c.totalMins)})</div>
+    <div class="ab-body">Courbe de fatigue accentuée après 50% de la course · Recommandations nutritionnelles ultra activées</div>
+  </div>` : ''}
+
+  <div class="card">
+    <div class="card-title">Tableau des temps de passage</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Distance</th>
+          <th>Heure de passage</th>
+          <th>Altitude</th>
+          <th>Pente</th>
+          <th>Terrain</th>
+          <th>% Perf.</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div style="font-size:11px;color:var(--mut);margin-top:8px">% Perf. = performance relative (100% = début, 60-70% = fin de course)</div>
+  </div>
+  `;
+
+  document.getElementById('passageContent').innerHTML = html;
+}
+
+// ============================================================
+// RENDER NUTRITION
+// ============================================================
+function renderNutrition() {
+  const plan = planData;
+  const events = plan.events;
+
+  const totalKcalRace = events
+    .filter(e => e.timeMins >= 0 && e.timeMins <= courseData.totalMins)
+    .reduce((s, e) => s + (e.kcal || 0), 0);
+
+  let eventsHtml = events.map(e => {
+    let cls = '';
+    if (e.priority === 'prio') cls = 'prio';
+    else if (e.priority === 'warn') cls = 'warn';
+    else if (e.priority === 'alert') cls = 'alert';
+
+    const isPrePost = e.type === 'prerace' || e.type === 'postrace';
+
+    return `<div class="nutr-event ${cls}">
+      <div class="ne-header">
+        <span class="ne-time">${isPrePost ? e.label.split('(')[0].trim() : fmtTime(e.timeMins)}</span>
+        ${!isPrePost ? `<span class="ne-km">km ${e.km.toFixed(1)}</span>` : ''}
+        ${e.priority === 'prio' ? '<span class="nutr-badge nb-g">✓ Prioritaire</span>' :
+          e.priority === 'warn' ? '<span class="nutr-badge nb-y">⚡ Vigilance</span>' :
+          e.priority === 'alert' ? '<span class="nutr-badge nb-r">🔴 Critique</span>' :
+          '<span class="nutr-badge" style="background:var(--surf2);color:var(--mut);border:1px solid var(--bdr)">Standard</span>'}
+      </div>
+      <div class="ne-body">${e.action}</div>
+      <div class="ne-detail">${e.detail}${e.kcal ? ` · <b style="color:var(--acc)">${e.kcal} kcal</b>` : ''}${e.eau_ml ? ` · 💧 ${e.eau_ml} ml` : ''}</div>
+    </div>`;
+  }).join('');
+
+  let alertsHtml = '';
+  if (config.meteo === 'chaud') {
+    alertsHtml += `<div class="alert-box warn"><div class="ab-title">☀️ Météo chaude — Vigilance hyponatrémie</div>
+    <div class="ab-body">Ne pas boire que de l'eau. Ajouter systématiquement électrolytes/sel après 1h. Objectif minimum : 600 ml/h.</div></div>`;
+  }
+  if (plan.isUltra) {
+    alertsHtml += `<div class="alert-box"><div class="ab-title">🔴 Ultra-trail — Signes à surveiller</div>
+    <div class="ab-body"><b>Hypoglycémie :</b> tremblements, confusion, faiblesse soudaine → gel immédiatement + repos 3 min<br>
+    <b>Déshydratation :</b> crampes, urine foncée → eau + électrolytes, ralentir<br>
+    <b>Nausées sévères :</b> après km 60+ → bouillon chaud, gingembre, liquide uniquement</div></div>`;
+  }
+
+  let html = `
+  <div class="section-title">Protocole Nutritionnel</div>
+
+  <div class="stat-row">
+    <div class="stat"><div class="stat-val">${Math.round(totalKcalRace)}</div><div class="stat-lbl">kcal plan</div></div>
+    <div class="stat"><div class="stat-val">${plan.totalKcal}</div><div class="stat-lbl">kcal théorie</div></div>
+    <div class="stat"><div class="stat-val">${plan.totalEau}L</div><div class="stat-lbl">Eau prévue</div></div>
+    <div class="stat"><div class="stat-val">${events.filter(e => e.timeMins >= 0 && e.timeMins <= courseData.totalMins).length}</div><div class="stat-lbl">Ravitos</div></div>
+  </div>
+
+  ${alertsHtml}
+
+  <div class="card">
+    <div class="card-title">Checklist pré-course (J-1 & matin J)</div>
+    <ul class="checklist">
+      <li>J-1 soir : repas riche en glucides complexes (pâtes, riz) + légumes cuits</li>
+      <li>J-1 soir : hydratation 2-3L eau + électrolytes tout au long de la journée</li>
+      <li>Matin J : petit déj 2-3h avant départ (pain, riz, confiture, banane)</li>
+      <li>-30 min : 1 gel ou barre + 300 ml eau si ventre calme</li>
+      <li>Vérifier le stock de produits · tout remplir avant le départ</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Timeline nutritionnelle</div>
+    <div class="nutr-timeline">${eventsHtml}</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Urgences course — Fiche réflexe</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="alert-box" style="margin:0">
+        <div class="ab-title">😵 Hypoglycémie</div>
+        <div class="ab-body">Tremblement · Vision floue · Faiblesse<br>→ Gel rapide immédiat · Marcher 3 min · Boire</div>
+      </div>
+      <div class="alert-box warn" style="margin:0">
+        <div class="ab-title">💦 Déshydratation</div>
+        <div class="ab-body">Crampes · Urine foncée · Maux de tête<br>→ 500 ml eau + sel · Ralentir · Ombre</div>
+      </div>
+      <div class="alert-box info" style="margin:0">
+        <div class="ab-title">🤢 Nausées</div>
+        <div class="ab-body">Après >60% course · Éviter solides<br>→ Bouillon · Gingembre · Liquide seul</div>
+      </div>
+      <div class="alert-box info" style="margin:0">
+        <div class="ab-title">⚡ Crampes</div>
+        <div class="ab-body">Manque Na/Mg<br>→ Sel immédiat · Eau · Étirement léger</div>
+      </div>
+    </div>
+  </div>
+  `;
+
+  document.getElementById('nutritionContent').innerHTML = html;
+}
+
+// ============================================================
+// RENDER EXPORT
+// ============================================================
+function renderExport() {
+  const nomCourse = document.getElementById('fNomCourse').value || 'Trail';
+  let html = `
+  <div class="section-title">Export PDF</div>
+  <div class="export-grid">
+    <div class="export-card">
+      <div class="export-icon">📋</div>
+      <div class="export-title">Plan complet</div>
+      <div class="export-desc">Document A4 imprimable avec profil de course, temps de passage détaillés, plan nutritionnel complet, checklist et débrief</div>
+      <button class="btn btn-primary" onclick="exportPDFComplet()">⬇️ Télécharger (A4)</button>
+    </div>
+    <div class="export-card">
+      <div class="export-icon">🏃</div>
+      <div class="export-title">Fiche mémo course</div>
+      <div class="export-desc">Format compact 2×A5 · Texte grand · Tableau synthétique · Code couleur · Utilisable pendant la course ou sur dossard</div>
+      <button class="btn btn-primary" onclick="exportPDFMemo()">⬇️ Télécharger (A5×2)</button>
+    </div>
+  </div>
+  <div class="card" style="margin-top:20px">
+    <div class="card-title">Résumé du plan</div>
+    <div style="font-size:13px;line-height:1.8;color:var(--txt)">
+      <b>Course :</b> ${nomCourse}<br>
+      <b>Distance :</b> ${(courseData.totalDist/1000).toFixed(1)} km · D+ ${courseData.dpPos}m<br>
+      <b>Temps estimé :</b> ${fmtTime(courseData.totalMins)}<br>
+      <b>Kcal prévues :</b> ~${planData.totalKcal} kcal total<br>
+      <b>Hydratation :</b> ~${planData.totalEau}L<br>
+      <b>Nombre d'apports :</b> ${planData.events.filter(e=>e.timeMins>=0&&e.timeMins<=courseData.totalMins).length} ravitaillements
+    </div>
+  </div>
+  `;
+  document.getElementById('exportContent').innerHTML = html;
+}
+
+// ============================================================
+// EXPORT PDF COMPLET
+// ============================================================
+function exportPDFComplet() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+  const nomCourse = (document.getElementById('fNomCourse').value || 'Trail').toUpperCase();
+  const c = courseData;
+  const plan = planData;
+  const W = 210, H = 297;
+  const pad = 14;
+
+  // Colors
+  const DARK = [13,13,15], SURF = [20,20,22], ACC = [232,255,71], ACC_DARK = [180,200,40];
+  const TXT = [240,240,240], MUT = [107,107,120];
+  const GRN = [74,222,128], WARN = [255,149,0], RED = [248,113,113];
+  const BDR = [42,42,48];
+
+  function page(num) {
+    if (num > 1) doc.addPage();
+    doc.setFillColor(...DARK);
+    doc.rect(0, 0, W, H, 'F');
+    // Header band
+    doc.setFillColor(...SURF);
+    doc.rect(0, 0, W, 18, 'F');
+    doc.setDrawColor(...ACC);
+    doc.setLineWidth(0.5);
+    doc.line(0, 18, W, 18);
+    // Title left
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(13);
+    doc.setTextColor(...ACC);
+    doc.text('NUTRITRAIL GPX', pad, 12);
+    // Course name right
+    doc.setFontSize(9);
+    doc.setTextColor(...MUT);
+    doc.text(nomCourse, W - pad, 12, { align:'right' });
+    // Page num
+    doc.setFontSize(7);
+    doc.text('Page ' + num, W - pad, H - 6, { align:'right' });
+  }
+
+  function sectionTitle(y, title) {
+    doc.setFillColor(...SURF);
+    doc.rect(pad, y, W - pad*2, 7, 'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(10);
+    doc.setTextColor(...ACC);
+    doc.text(title, pad + 3, y + 5);
+    return y + 10;
+  }
+
+  function cell(x, y, w, h, fillRgb, textRgb, text, fontSize=8, bold=false, align='left') {
+    doc.setFillColor(...fillRgb);
+    doc.rect(x, y, w, h, 'F');
+    doc.setFont('helvetica', bold ? 'bold' : 'normal');
+    doc.setFontSize(fontSize);
+    doc.setTextColor(...textRgb);
+    if (align === 'center') doc.text(text, x + w/2, y + h/2 + fontSize * 0.18, { align:'center' });
+    else doc.text(text, x + 2, y + h/2 + fontSize * 0.18);
+  }
+
+  // ---- PAGE 1 : Résumé course + profil athlète ----
+  page(1);
+  let y = 24;
+
+  // Course title
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(18);
+  doc.setTextColor(...TXT);
+  doc.text(nomCourse, pad, y); y += 6;
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(9);
+  doc.setTextColor(...MUT);
+  doc.text(`Plan nutritionnel généré — NutriTrail GPX · LV Tools`, pad, y); y += 8;
+
+  // Stats row
+  const statW = (W - pad*2) / 6;
+  const stats = [
+    [(c.totalDist/1000).toFixed(1)+' km','Distance'],
+    ['+'+c.dpPos+'m','D+'],
+    ['-'+c.dpNeg+'m','D-'],
+    [fmtTime(c.totalMins),'Temps'],
+    [Math.round(c.eleMin)+'m','Alt. min'],
+    [Math.round(c.eleMax)+'m','Alt. max'],
+  ];
+  stats.forEach((s, i) => {
+    const x = pad + i * statW;
+    doc.setFillColor(...SURF);
+    doc.rect(x, y, statW - 1, 16, 'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(10);
+    doc.setTextColor(...ACC);
+    doc.text(s[0], x + statW/2, y + 8, { align:'center' });
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...MUT);
+    doc.text(s[1], x + statW/2, y + 13, { align:'center' });
+  });
+  y += 20;
+
+  // Profil athlète
+  y = sectionTitle(y, 'PROFIL ATHLÈTE');
+  const profItems = [
+    [`Poids`, `${config.poids} kg`],
+    [`Objectif`, `${config.kcalH} kcal/h`],
+    [`Hydratation`, `/${config.hydratMins} min`],
+    [`Digest.`, config.digest],
+    [`Niveau`, config.niveau],
+    [`Météo`, config.meteo],
+  ];
+  const piW = (W - pad*2) / 3;
+  profItems.forEach((pi, i) => {
+    const x = pad + (i % 3) * piW;
+    const rowY = y + Math.floor(i / 3) * 12;
+    doc.setFillColor(...SURF);
+    doc.rect(x, rowY, piW - 2, 10, 'F');
+    doc.setDrawColor(50,50,60);
+    doc.setLineWidth(0.3);
+    doc.rect(x, rowY, 2, 10, 'F');
+    doc.setFillColor(...ACC_DARK);
+    doc.rect(x, rowY, 2, 10, 'F');
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...MUT);
+    doc.text(pi[0], x + 5, rowY + 4);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...TXT);
+    doc.text(pi[1], x + 5, rowY + 9);
+  });
+  y += Math.ceil(profItems.length / 3) * 12 + 4;
+
+  // Macros bar visual
+  y = sectionTitle(y, 'MACRONUTRIMENTS CIBLES');
+  const barW = W - pad * 2;
+  const lipPct = 100 - config.gluPct - config.protPct;
+  doc.setFillColor(56,189,248);
+  doc.rect(pad, y, barW * config.gluPct/100, 6, 'F');
+  doc.setFillColor(167,139,250);
+  doc.rect(pad + barW * config.gluPct/100, y, barW * config.protPct/100, 6, 'F');
+  doc.setFillColor(251,146,60);
+  doc.rect(pad + barW * (config.gluPct + config.protPct)/100, y, barW * lipPct/100, 6, 'F');
+  y += 8;
+  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...MUT);
+  doc.text(`Glucides ${config.gluPct}%   Protéines ${config.protPct}%   Lipides ${lipPct}%`, pad, y);
+  y += 8;
+
+  // Produits
+  if (config.produits) {
+    y = sectionTitle(y, 'PRODUITS DISPONIBLES');
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...TXT);
+    const lines = doc.splitTextToSize(config.produits, W - pad*2 - 4);
+    lines.forEach(l => { doc.text(l, pad + 2, y); y += 5; });
+    y += 4;
+  }
+
+  // Checklist pré-course
+  y = sectionTitle(y, 'CHECKLIST PRÉ-COURSE');
+  const checks = [
+    'J-1 soir : repas riche en glucides complexes + légumes cuits',
+    'J-1 soir : hydratation 2-3L eau + électrolytes',
+    'Matin J : petit déj 2-3h avant départ (pain, riz, banane)',
+    '-30 min : 1 gel + 300 ml eau (si ventre calme)',
+    'Vérifier stock produits · tout remplir avant départ',
+  ];
+  checks.forEach(ch => {
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...TXT);
+    doc.text('☐  ' + ch, pad + 2, y); y += 6;
+  });
+
+  // ---- PAGE 2 : Temps de passage ----
+  page(2);
+  y = 24;
+  y = sectionTitle(y, `TEMPS DE PASSAGE — ${nomCourse}`);
+
+  const totalDist = c.totalDist;
+  const step = Math.max(1, Math.floor(totalDist / 1000));
+  const displayed = [];
+  for (let km = 0; km <= totalDist / 1000; km += step) {
+    const targetDist = km * 1000;
+    let best = c.points[0];
+    for (const p of c.points) {
+      if (Math.abs(p.dist - targetDist) < Math.abs(best.dist - targetDist)) best = p;
+    }
+    if (!displayed.includes(best)) displayed.push(best);
+  }
+  if (!displayed.includes(c.points[c.points.length-1])) displayed.push(c.points[c.points.length-1]);
+
+  const slopeNames = { flat:'Plat', 'up-s':'Montée', 'up-r':'Montée raide', 'dn-s':'Descente', 'dn-r':'Descente raide' };
+  const rowH = 8;
+  const cols = [22,22,18,16,30,18];
+  const colX = [0];
+  cols.forEach((w, i) => colX.push(colX[i] + w));
+  const heads = ['Km','Passage','Altitude','Pente','Terrain','% Perf.'];
+
+  // Header
+  heads.forEach((h, i) => {
+    cell(pad + colX[i], y, cols[i]-1, rowH, SURF, MUT, h, 7, true, 'center');
+  });
+  y += rowH + 1;
+
+  displayed.forEach((p, ri) => {
+    const cls = classifySlope(p.slope);
+    const ratio = p.dist / totalDist;
+    const fc = Math.round(fatigueCoeff(ratio, config.niveau) * 100);
+    const bg = ri % 2 === 0 ? DARK : [16,16,18];
+
+    // Color for % perf
+    let perfColor = GRN;
+    if (fc < 75) perfColor = WARN;
+    if (fc < 65) perfColor = RED;
+
+    const rowData = [
+      (p.dist/1000).toFixed(1)+'km',
+      fmtTime(p.timeMins),
+      Math.round(p.ele)+'m',
+      (p.slope>=0?'+':'')+p.slope.toFixed(1)+'%',
+      slopeNames[cls] || cls,
+      fc+'%',
+    ];
+    rowData.forEach((v, i) => {
+      cell(pad + colX[i], y, cols[i]-1, rowH, bg, i===5?perfColor:TXT, v, 7, i===5, 'center');
+    });
+    y += rowH;
+    if (y > H - 20) { page(3); y = 24; y = sectionTitle(y, 'TEMPS DE PASSAGE (suite)'); }
+  });
+  y += 6;
+
+  // Fatigue note
+  doc.setFont('helvetica','italic'); doc.setFontSize(7); doc.setTextColor(...MUT);
+  doc.text('% Perf. = coefficient de performance relatif (100% = début de course). Modèle fatigue : ' + config.niveau, pad, y);
+
+  // ---- PAGE 3/4 : Nutrition ----
+  let pageNum = 3;
+  if (y > H - 80) { page(++pageNum); } else { page(++pageNum); }
+  y = 24;
+  y = sectionTitle(y, 'PLAN NUTRITIONNEL — TIMELINE');
+
+  // Totaux
+  const totalKcalRace = plan.events.filter(e=>e.timeMins>=0&&e.timeMins<=c.totalMins).reduce((s,e)=>s+(e.kcal||0),0);
+  const totW = (W - pad*2) / 4;
+  const tots = [
+    [Math.round(totalKcalRace)+' kcal','Plan course'],
+    [plan.totalKcal+' kcal','Théorique'],
+    [plan.totalEau+'L','Hydratation'],
+    [plan.events.filter(e=>e.timeMins>=0&&e.timeMins<=c.totalMins).length,'Ravitos'],
+  ];
+  tots.forEach((t, i) => {
+    const x = pad + i * totW;
+    doc.setFillColor(...SURF);
+    doc.rect(x, y, totW-1, 14, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...ACC);
+    doc.text(t[0].toString(), x + totW/2, y+7, { align:'center' });
+    doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...MUT);
+    doc.text(t[1], x + totW/2, y+12, { align:'center' });
+  });
+  y += 18;
+
+  // Événements nutritionnels
+  const colsN = [22,18,80,26,14];
+  const colXN = [0]; colsN.forEach((w,i)=>colXN.push(colXN[i]+w));
+  const headsN = ['Heure','km','Action nutritionnelle','Kcal','Eau'];
+  headsN.forEach((h,i) => {
+    cell(pad+colXN[i], y, colsN[i]-1, rowH, SURF, MUT, h, 7, true);
+  });
+  y += rowH+1;
+
+  plan.events.forEach((e, ri) => {
+    if (e.timeMins < 0 || e.timeMins > c.totalMins) return;
+    const bg = e.priority === 'prio' ? [10,25,15] :
+               e.priority === 'warn' ? [25,18,5] :
+               e.priority === 'alert' ? [28,10,10] :
+               ri % 2 === 0 ? DARK : [16,16,18];
+    const txtC = e.priority === 'prio' ? GRN :
+                 e.priority === 'warn' ? WARN :
+                 e.priority === 'alert' ? RED : TXT;
+    const rowData = [
+      fmtTime(e.timeMins),
+      e.km.toFixed(1),
+      e.action.slice(0, 55),
+      (e.kcal||0).toString(),
+      (e.eau_ml||0)+'ml',
+    ];
+    rowData.forEach((v, i) => {
+      cell(pad+colXN[i], y, colsN[i]-1, rowH, bg, i===0?txtC:TXT, v, 7);
+    });
+    y += rowH;
+    if (y > H - 30) {
+      page(++pageNum); y = 24;
+      y = sectionTitle(y, 'PLAN NUTRITIONNEL (suite)');
+      headsN.forEach((h,i) => {
+        cell(pad+colXN[i], y, colsN[i]-1, rowH, SURF, MUT, h, 7, true);
+      });
+      y += rowH+1;
+    }
+  });
+  y += 6;
+
+  // Légende
+  [[GRN,'Apport prioritaire / fenêtre digestive optimale'],[WARN,'Vigilance — dernier tiers de course'],[RED,'Critique — liquides uniquement, surveillance accrue']].forEach(([col,txt]) => {
+    doc.setFillColor(...col); doc.circle(pad+3, y, 2, 'F');
+    doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...MUT);
+    doc.text(txt, pad+8, y+1); y += 6;
+  });
+  y += 4;
+
+  // ---- Dernière page : Urgences + Débrief ----
+  page(++pageNum);
+  y = 24;
+  y = sectionTitle(y, 'URGENCES COURSE — FICHE RÉFLEXE');
+
+  const urgences = [
+    [RED,'HYPOGLYCÉMIE','Tremblement · Vision floue · Faiblesse soudaine','→ Gel sucré immédiat · Marcher 3 min · Boire 200ml'],
+    [WARN,'DÉSHYDRATATION','Crampes · Urine foncée · Maux de tête','→ 500ml eau + sel · Ralentir · Chercher ombre'],
+    [[56,189,248],'NAUSÉES (>60%)','Intolérance aliments solides · Estomac chargé','→ Bouillon chaud · Gingembre · Liquides uniquement'],
+    [[56,189,248],'CRAMPES','Manque Na/Mg · Effort intense','→ Sel immédiat · Eau · Étirement doux'],
+  ];
+  urgences.forEach(([col, titre, symp, action]) => {
+    doc.setFillColor(SURF[0], SURF[1], SURF[2]);
+    doc.rect(pad, y, W-pad*2, 22, 'F');
+    doc.setFillColor(...col); doc.rect(pad, y, 3, 22, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...col);
+    doc.text(titre, pad+7, y+7);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...TXT);
+    doc.text(symp, pad+7, y+13);
+    doc.setTextColor(...MUT);
+    doc.text(action, pad+7, y+19);
+    y += 25;
+  });
+  y += 4;
+
+  y = sectionTitle(y, 'DÉBRIEF POST-COURSE');
+  const debriefFields = [
+    'Temps réel : ____________________',
+    'RPE moyen /10 : ______  RPE fin de course /10 : ______',
+    'Produits bien tolérés : _______________________________________________',
+    'Produits mal tolérés : ________________________________________________',
+    'Moments critiques (km/h) : ____________________________________________',
+    'À modifier pour la prochaine course : ____________________________________',
+    'Hydratation ressentie :  ☐ Suffisante  ☐ Insuffisante  ☐ Excessive',
+  ];
+  debriefFields.forEach(f => {
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...TXT);
+    doc.text(f, pad+2, y); y += 9;
+  });
+
+  // Footer last page
+  doc.setFont('helvetica','italic'); doc.setFontSize(7); doc.setTextColor(...MUT);
+  doc.text('Généré par NutriTrail GPX · LV Tools · Laurent Véron', pad, H-6);
+
+  doc.save(`Plan_Nutrition_${nomCourse.replace(/\s+/g,'_')}_complet.pdf`);
+}
+
+// ============================================================
+// EXPORT PDF MEMO
+// ============================================================
+function exportPDFMemo() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4' });
+  const nomCourse = (document.getElementById('fNomCourse').value || 'Trail').toUpperCase();
+  const c = courseData;
+  const plan = planData;
+  // Landscape A4 = 297 x 210mm. Split en 2 fiches A5 (148.5 x 210)
+  const FW = 148.5, FH = 210;
+  const DARK = [13,13,15], SURF = [20,20,22], ACC = [232,255,71];
+  const TXT = [240,240,240], MUT = [107,107,120];
+  const GRN = [74,222,128], WARN_C = [255,149,0], RED = [248,113,113];
+
+  function drawFiche(offsetX) {
+    // Background
+    doc.setFillColor(...DARK);
+    doc.rect(offsetX, 0, FW, FH, 'F');
+    // Header
+    doc.setFillColor(...SURF);
+    doc.rect(offsetX, 0, FW, 14, 'F');
+    doc.setDrawColor(...ACC);
+    doc.setLineWidth(0.5);
+    doc.line(offsetX, 14, offsetX+FW, 14);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...ACC);
+    doc.text('FICHE MÉMO COURSE', offsetX+4, 10);
+    doc.setFontSize(8);
+    doc.setTextColor(...MUT);
+    doc.text(nomCourse, offsetX+FW-4, 10, {align:'right'});
+
+    let y = 18;
+    // Stats compact
+    const si = [(c.totalDist/1000).toFixed(1)+'km','+'+c.dpPos+'m',fmtTime(c.totalMins)];
+    const sl = ['Distance','D+','Temps'];
+    const sw = 30;
+    si.forEach((s,i) => {
+      doc.setFillColor(...SURF);
+      doc.rect(offsetX+4+i*32, y, sw, 10, 'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...ACC);
+      doc.text(s, offsetX+4+i*32+sw/2, y+6, {align:'center'});
+      doc.setFont('helvetica','normal'); doc.setFontSize(6); doc.setTextColor(...MUT);
+      doc.text(sl[i], offsetX+4+i*32+sw/2, y+9.5, {align:'center'});
+    });
+    y += 14;
+
+    // Timeline tableau
+    const raceEvents = plan.events.filter(e => e.timeMins >= 0 && e.timeMins <= c.totalMins);
+    // Colonnes : heure, km, action (courte), kcal, eau, signal
+    const colWM = [18, 12, 72, 16, 14];
+    const colXM = [0]; colWM.forEach((w,i)=>colXM.push(colXM[i]+w));
+    const headsM = ['Heure','km','Action','kcal','💧ml'];
+    const rowH = 7.5;
+    const baseX = offsetX + 4;
+
+    // Header
+    headsM.forEach((h,i) => {
+      doc.setFillColor(...SURF);
+      doc.rect(baseX+colXM[i], y, colWM[i]-0.5, rowH-0.5, 'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...MUT);
+      doc.text(h, baseX+colXM[i]+1, y+5);
+    });
+    y += rowH;
+
+    raceEvents.forEach((e, ri) => {
+      if (y > FH - 30) return; // clip
+
+      const bg = e.priority === 'prio' ? [10,25,15] :
+                 e.priority === 'warn' ? [25,18,5] :
+                 e.priority === 'alert' ? [28,10,10] :
+                 ri%2===0 ? DARK : [16,16,18];
+      const txtC = e.priority === 'prio' ? GRN :
+                   e.priority === 'warn' ? WARN_C :
+                   e.priority === 'alert' ? RED : TXT;
+
+      const row = [fmtTime(e.timeMins), e.km.toFixed(1), e.action.slice(0,45), (e.kcal||0).toString(), (e.eau_ml||0).toString()];
+      row.forEach((v,i) => {
+        doc.setFillColor(...bg);
+        doc.rect(baseX+colXM[i], y, colWM[i]-0.5, rowH-0.5, 'F');
+        doc.setFont('helvetica', i===0&&e.priority!=='normal'?'bold':'normal');
+        doc.setFontSize(i===0?7:6.5);
+        doc.setTextColor(...(i===0?txtC:TXT));
+        doc.text(v, baseX+colXM[i]+1, y+5);
+      });
+      // Signal dot
+      const dotColors = { prio:GRN, warn:WARN_C, alert:RED, normal:MUT };
+      doc.setFillColor(...(dotColors[e.priority]||MUT));
+      doc.circle(offsetX+FW-6, y+rowH/2, 2.5, 'F');
+      y += rowH;
+    });
+
+    y += 4;
+    // Légende
+    [[GRN,'Prioritaire'],[WARN_C,'Vigilance'],[RED,'Critique']].forEach(([col,lbl],i) => {
+      doc.setFillColor(...col); doc.circle(offsetX+4+i*36+2, y+2, 2, 'F');
+      doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(...MUT);
+      doc.text(lbl, offsetX+4+i*36+6, y+4);
+    });
+    y += 8;
+
+    // Urgences compact
+    const urg = [
+      [RED,'HYPO: gel immédiat + marcher'],
+      [WARN_C,'DÉSHYDRAT: eau+sel+ralentir'],
+      [RED,'NAUSÉES: liquide seul'],
+    ];
+    urg.forEach(([col,txt]) => {
+      doc.setFillColor(...SURF);
+      doc.rect(offsetX+4, y, FW-8, 8, 'F');
+      doc.setFillColor(...col); doc.rect(offsetX+4, y, 2, 8, 'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...TXT);
+      doc.text(txt, offsetX+9, y+5);
+      y += 10;
+    });
+
+    // Trait de coupe vertical (entre les deux fiches)
+    if (offsetX === 0) {
+      doc.setDrawColor(...MUT);
+      doc.setLineWidth(0.2);
+      doc.setLineDash([3,3]);
+      doc.line(FW, 0, FW, FH);
+      doc.setLineDash([]);
+    }
+  }
+
+  drawFiche(0);
+  drawFiche(FW);
+
+  doc.save(`Plan_Nutrition_${nomCourse.replace(/\s+/g,'_')}_memo.pdf`);
+}
+
+// ============================================================
+// MAIN GENERER
+// ============================================================
+function generer() {
+  if (!gpxData) { alert('Veuillez d\'abord importer un fichier GPX'); return; }
+
+  const tpsMin = parseTps(document.getElementById('fTps').value);
+  if (!tpsMin) { alert('Veuillez entrer un temps estimé valide (ex: 4h30)'); return; }
+
+  config = {
+    poids: parseInt(document.getElementById('fPoids').value) || 70,
+    kcalH: parseInt(document.getElementById('fKcalH').value) || 200,
+    hydratMins: parseInt(document.getElementById('fHydrat').value) || 20,
+    gluPct: parseInt(document.getElementById('fGlu').value) || 65,
+    protPct: parseInt(document.getElementById('fProt').value) || 15,
+    digest: getRadio('rDigest') || 'normale',
+    niveau: getRadio('rNiveau') || 'confirme',
+    meteo: getRadio('rMeteo') || 'tempere',
+    produits: document.getElementById('fProduits').value.trim(),
+    tpsMin
+  };
+
+  // Loading
+  document.getElementById('loadingDiv').classList.add('show');
+  document.getElementById('btnGenerer').disabled = true;
+
+  const steps = ['Analyse du profil GPX...', 'Calcul coefficients topographiques...', 'Modélisation courbe de fatigue...', 'Calcul temps de passage...', 'Génération protocole nutritionnel...'];
+  let step = 0;
+  const loadMsg = document.getElementById('loadingMsg');
+  const loadInterval = setInterval(() => {
+    loadMsg.textContent = steps[step % steps.length];
+    step++;
+  }, 400);
+
+  setTimeout(() => {
+    clearInterval(loadInterval);
+    try {
+      courseData = computeCourse(tpsMin, config.niveau);
+      planData = buildNutritionPlan(courseData, config);
+
+      renderProfil();
+      renderPassage();
+      renderNutrition();
+      renderExport();
+
+      document.getElementById('loadingDiv').classList.remove('show');
+      document.getElementById('btnGenerer').disabled = false;
+      document.getElementById('statusBadge').textContent = '✓ Plan généré';
+      document.getElementById('statusBadge').style.borderColor = 'var(--grn)';
+      document.getElementById('statusBadge').style.color = 'var(--grn)';
+
+      // Aller sur l'onglet profil
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('tab-profil').classList.add('active');
+      document.querySelectorAll('.tab')[1].classList.add('active');
+
+    } catch(err) {
+      document.getElementById('loadingDiv').classList.remove('show');
+      document.getElementById('btnGenerer').disabled = false;
+      alert('Erreur lors du calcul : ' + err.message + '\n' + err.stack);
+    }
+  }, 2200);
+}
+
+function resetApp() {
+  gpxData = null; courseData = null; planData = null; config = {};
+  document.getElementById('uploadIcon').textContent = '📍';
+  document.getElementById('uploadTitle').textContent = 'Importer un fichier GPX';
+  document.getElementById('uploadSub').textContent = 'Glissez-déposez ou cliquez pour sélectionner';
+  document.getElementById('dropZone').classList.remove('has-file');
+  document.getElementById('btnGenerer').disabled = true;
+  document.getElementById('statusBadge').textContent = 'En attente';
+  document.getElementById('statusBadge').classList.remove('active');
+  document.getElementById('statusBadge').style.borderColor = '';
+  document.getElementById('statusBadge').style.color = '';
+  document.getElementById('gpxInput').value = '';
+  ['profilContent','passageContent','nutritionContent','exportContent'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const icons = { profilContent:'📍', passageContent:'🕐', nutritionContent:'🥤', exportContent:'📄' };
+    const msgs = {
+      profilContent:'Importez un GPX et générez le plan pour voir le profil',
+      passageContent:'Générez le plan pour voir les temps de passage',
+      nutritionContent:'Générez le plan pour voir le protocole nutritionnel',
+      exportContent:'Générez le plan pour activer l\'export PDF'
+    };
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">${icons[id]}</div><div>${msgs[id]}</div></div>`;
+  });
+  showTab('config');
+  document.querySelectorAll('.tab')[0].classList.add('active');
+}
+</script>
+</body>
+</html>
