@@ -361,7 +361,8 @@ function renderProductGrid() {
   if (!grid) return;
   grid.innerHTML = PRODUCTS.map(p => {
     const sel = selectedProducts.includes(p.id);
-    let meta = `${p.carbs}g gluc · ${p.kcal} kcal`;
+    let meta = `${p.carbs}g glucides`;
+    if (p.kcal) meta += ` · ${p.kcal} kcal`;
     if (p.sodium) meta += ` · ${p.sodium}mg Na`;
     if (p.caf) meta += ` · ${p.caf}mg caféine`;
     return `<div class="prod-item${sel?' sel':''}" data-pid="${p.id}" onclick="toggleProduct('${p.id}')">
@@ -481,15 +482,12 @@ function loadGPX(file) {
       });
       if (raw.length < 2) { alert('GPX : pas assez de points valides'); return; }
 
-      // 2) Décimer AVANT calcul si trop de points (sur les points bruts)
-      if (raw.length > 2000) {
-        const factor = Math.ceil(raw.length / 1500);
-        raw = raw.filter((_, i) => i % factor === 0 || i === raw.length - 1);
-      }
+      // 2) DISTANCE & D+/D- calculés sur la TRACE BRUTE COMPLÈTE
+      //    (jamais sur les points décimés, sinon on coupe les virages et le relief).
 
-      // 3) Lisser l'altitude (moyenne glissante) pour réduire le bruit GPS
-      const win = 3; // demi-fenêtre
-      const smoothEle = raw.map((p, i) => {
+      // 2a) Lissage léger de l'altitude pour atténuer le bruit GPS sans écraser le relief
+      const win = 2; // demi-fenêtre réduite (5 points)
+      const smoothEleRaw = raw.map((p, i) => {
         let sum = 0, n = 0;
         for (let j = Math.max(0, i - win); j <= Math.min(raw.length - 1, i + win); j++) {
           sum += raw[j].ele; n++;
@@ -497,43 +495,55 @@ function loadGPX(file) {
         return sum / n;
       });
 
-      // 4) Construire les points avec distances cumulées + altitude lissée
-      let points = [];
-      let cumDist = 0;
-      let prev = null;
-      raw.forEach((p0, i) => {
-        const p = { lat: p0.lat, lon: p0.lon, ele: smoothEle[i], eleRaw: p0.ele, time: p0.time };
-        if (prev) {
-          const d = haversine(prev, p);
-          cumDist += d;
-          p.dist = cumDist;
-          p.segDist = d;
-          p.dEle = p.ele - prev.ele;
-          p.slope = d > 0 ? (p.dEle / d) * 100 : 0;
-        } else {
-          p.dist = 0; p.segDist = 0; p.dEle = 0; p.slope = 0;
-        }
-        points.push(p);
-        prev = p;
-      });
+      // 2b) Distance totale réelle (haversine sur tous les points)
+      let realDist = 0;
+      for (let i = 1; i < raw.length; i++) realDist += haversine(raw[i-1], raw[i]);
 
-      gpxData = points;
-
-      // 5) D+ / D- avec SEUIL anti-bruit : on accumule les micro-variations
-      //    et on ne valide une montée/descente qu'au-delà de 3 m cumulés.
-      const THRESH = 3; // mètres
-      let dpPos = 0, dpNeg = 0;
-      let acc = 0;       // accumulateur de variation depuis dernier "palier"
-      for (let i = 1; i < gpxData.length; i++) {
-        const de = gpxData[i].ele - gpxData[i - 1].ele;
-        // si le sens change, on remet l'accumulateur dans le bon sens
+      // 2c) D+ / D- avec seuil anti-bruit calibré à 2 m (sur trace complète lissée)
+      const THRESH = 2;
+      let dpPos = 0, dpNeg = 0, acc = 0;
+      for (let i = 1; i < smoothEleRaw.length; i++) {
+        const de = smoothEleRaw[i] - smoothEleRaw[i - 1];
         if (acc !== 0 && Math.sign(de) !== Math.sign(acc)) acc = 0;
         acc += de;
         if (acc >= THRESH) { dpPos += acc; acc = 0; }
         else if (acc <= -THRESH) { dpNeg += Math.abs(acc); acc = 0; }
       }
 
-      const totalDist = gpxData[gpxData.length - 1].dist;
+      // 3) Décimer UNIQUEMENT pour l'affichage / les calculs de segments
+      //    en conservant la distance cumulée réelle de chaque point gardé.
+      // 3a) construire un index distance cumulée sur trace complète
+      let cumFull = [0];
+      for (let i = 1; i < raw.length; i++) cumFull[i] = cumFull[i-1] + haversine(raw[i-1], raw[i]);
+
+      let keepIdx = raw.map((_, i) => i);
+      if (raw.length > 2500) {
+        const factor = Math.ceil(raw.length / 2000);
+        keepIdx = raw.map((_, i) => i).filter(i => i % factor === 0 || i === raw.length - 1);
+      }
+
+      // 4) Construire les points affichés (distance = distance réelle cumulée)
+      let points = [];
+      let prev = null;
+      keepIdx.forEach(i => {
+        const p = { lat: raw[i].lat, lon: raw[i].lon, ele: smoothEleRaw[i], eleRaw: raw[i].ele, time: raw[i].time };
+        p.dist = cumFull[i];                       // distance réelle (pas la corde décimée)
+        if (prev) {
+          p.segDist = p.dist - prev.dist;
+          p.dEle = p.ele - prev.ele;
+          p.slope = p.segDist > 0 ? (p.dEle / p.segDist) * 100 : 0;
+        } else { p.segDist = 0; p.dEle = 0; p.slope = 0; }
+        points.push(p);
+        prev = p;
+      });
+
+      gpxData = points;
+      // Stocker D+/D- réels (calculés sur trace complète) pour réutilisation
+      gpxData._realDpPos = Math.round(dpPos);
+      gpxData._realDpNeg = Math.round(dpNeg);
+      gpxData._realDist = realDist;
+
+      const totalDist = realDist;
 
       // Nom depuis fichier
       const nameEl = xml.querySelector('name');
@@ -599,7 +609,8 @@ function fatigueCoeff(ratio, niveau) {
 
 function computeCourse(tpsTotal, niveau) {
   const pts = gpxData;
-  const totalDist = pts[pts.length - 1].dist;
+  // Distance réelle (calculée sur trace complète au parsing)
+  const totalDist = pts._realDist || pts[pts.length - 1].dist;
   const totalMins = tpsTotal;
 
   // Calcul poids relatif de chaque segment (effort normalisé)
@@ -623,16 +634,9 @@ function computeCourse(tpsTotal, niveau) {
     return { ...p, timeMins: cumMins, segMins };
   });
 
-  // Calculer D+ D- total avec seuil anti-bruit (cohérent avec loadGPX)
-  const THRESH = 3;
-  let dpPos = 0, dpNeg = 0, acc = 0;
-  for (let i = 1; i < pts.length; i++) {
-    const de = pts[i].ele - pts[i - 1].ele;
-    if (acc !== 0 && Math.sign(de) !== Math.sign(acc)) acc = 0;
-    acc += de;
-    if (acc >= THRESH) { dpPos += acc; acc = 0; }
-    else if (acc <= -THRESH) { dpNeg += Math.abs(acc); acc = 0; }
-  }
+  // D+ / D- = valeurs réelles calculées sur la trace complète au parsing
+  const dpPos = pts._realDpPos !== undefined ? pts._realDpPos : 0;
+  const dpNeg = pts._realDpNeg !== undefined ? pts._realDpNeg : 0;
 
   return {
     points: result,
@@ -652,7 +656,9 @@ function computeCourse(tpsTotal, niveau) {
 function buildNutritionPlan(course, cfg) {
   const { totalDist, totalMins, points } = course;
   const isUltra = totalDist > 50000 || totalMins > 360;
+  const carbsH = cfg.carbsH || 60;
   const kcalH = cfg.kcalH;
+  const totalCarbs = (totalMins / 60) * carbsH;
   const totalKcal = (totalMins / 60) * kcalH;
 
   // Hydratation : plus en chaud
@@ -666,18 +672,17 @@ function buildNutritionPlan(course, cfg) {
   const electros = sel.filter(p => p.type === 'electro');
   const caffGel = sel.find(p => p.caf > 0);
 
-  // Choisit le meilleur produit "solide/gel" pour atteindre ~targetKcal
-  function pickSolid(targetKcal, preferCaffeine) {
+  // Choisit le meilleur produit "solide/gel" pour atteindre ~targetCarbs (g)
+  function pickSolid(targetCarbs, preferCaffeine) {
     if (preferCaffeine && caffGel) {
-      const n = Math.max(1, Math.round(targetKcal / caffGel.kcal));
+      const n = Math.max(1, Math.round(targetCarbs / caffGel.carbs));
       return { p: caffGel, n };
     }
     if (!gels.length) return null;
-    // Choisir le gel dont 1 unité approche le mieux la cible (sans trop dépasser)
     let best = gels[0], bestN = 1, bestErr = Infinity;
     gels.forEach(p => {
-      const n = Math.max(1, Math.round(targetKcal / p.kcal));
-      const err = Math.abs(n * p.kcal - targetKcal);
+      const n = Math.max(1, Math.round(targetCarbs / p.carbs));
+      const err = Math.abs(n * p.carbs - targetCarbs);
       if (err < bestErr) { bestErr = err; best = p; bestN = n; }
     });
     return { p: best, n: bestN };
@@ -689,6 +694,7 @@ function buildNutritionPlan(course, cfg) {
     if (!pick) return null;
     return `${pick.n}× ${pick.p.name}`;
   }
+  function prodCarbs(pick) { return pick ? pick.n * pick.p.carbs : 0; }
 
   // Générer des événements nutritionnels
   const events = [];
@@ -712,9 +718,9 @@ function buildNutritionPlan(course, cfg) {
     km: 0,
     label: 'Pré-départ (-30 min)',
     action: 'Repas riche en glucides, bien hydraté',
-    detail: `200-250 kcal glucides complexes · 500 ml eau${preElectro ? ' + 1× ' + preElectro.name : ''} · Café si habitude`,
+    detail: `60-80 g glucides complexes · 500 ml eau${preElectro ? ' + 1× ' + preElectro.name : ''} · Café si habitude`,
     priority: 'prio',
-    kcal: 0, eau_ml: 500
+    carbs: 0, kcal: 0, eau_ml: 500
   });
 
   let elapsedSinceElectro = 0;
@@ -726,11 +732,11 @@ function buildNutritionPlan(course, cfg) {
     const isLastThird = ratio > 0.66;
     const isLastFifth = ratio > 0.80;
 
-    let action, detail, kcal, eau_ml, priority;
-    const kcalPerEvent = (kcalH / 60) * intervalMins;
+    let action, detail, carbs, eau_ml, priority;
+    const carbsPerEvent = (carbsH / 60) * intervalMins;
     elapsedSinceElectro += intervalMins;
 
-    // Électrolyte toutes les ~45-60 min (ou 30 si chaud)
+    // Électrolyte toutes les ~45-60 min (ou 45 si chaud)
     const electroEvery = cfg.meteo === 'chaud' ? 45 : 60;
     let addElectro = '';
     const elec = pickElectro();
@@ -740,49 +746,49 @@ function buildNutritionPlan(course, cfg) {
     }
 
     if (nextEvent <= 30) {
-      // Début : démarrage doux
+      // Début : démarrage doux (moitié de la cible)
       const drink = pickDrink();
-      const targetK = kcalPerEvent * 0.5;
-      const solid = pickSolid(targetK);
+      const targetC = carbsPerEvent * 0.5;
+      const solid = pickSolid(targetC);
       action = 'Hydratation + démarrage glucides';
       detail = (drink ? `Boisson ${drink.name} (gorgées régulières)` : 'Gorgées régulières')
              + (solid ? ` ou ${fmtProd(solid)}` : '') + addElectro;
-      kcal = Math.round(targetK);
+      carbs = solid ? prodCarbs(solid) : Math.round(targetC);
       eau_ml = Math.round(mlPerHour / 60 * intervalMins);
       priority = 'prio';
     } else if (isLastFifth) {
       // Dernier 20% : liquides uniquement
       const drink = pickDrink();
-      const solid = pickSolid(kcalPerEvent * 0.8);
+      const solid = pickSolid(carbsPerEvent * 0.85);
       action = 'Format LIQUIDE uniquement — fenêtre digestive réduite';
       detail = (drink ? `${drink.name} privilégié` : (solid ? fmtProd(solid) + ' (dilué/avec eau)' : 'Boisson glucidique'))
              + (isUltra ? ' · bouillon salé si nausée' : '') + addElectro;
-      kcal = Math.round(kcalPerEvent * 0.8);
+      carbs = solid ? Math.round(prodCarbs(solid) * 0.85) : Math.round(carbsPerEvent * 0.85);
       eau_ml = Math.round(mlPerHour / 60 * intervalMins * 1.1);
       priority = 'alert';
     } else if (isLastThird) {
       // Dernier tiers : gel/semi-liquide, vigilance
-      const solid = pickSolid(kcalPerEvent, true); // privilégier caféine si dispo (coup de fouet)
+      const solid = pickSolid(carbsPerEvent, true); // privilégier caféine (coup de fouet)
       action = 'Gel + eau · surveiller nausées';
       detail = (solid ? fmtProd(solid) : 'Gel glucidique') + addElectro
              + (solid && solid.p.caf ? ' (caféine : coup de fouet)' : '');
-      kcal = Math.round(kcalPerEvent);
+      carbs = solid ? prodCarbs(solid) : Math.round(carbsPerEvent);
       eau_ml = Math.round(mlPerHour / 60 * intervalMins);
       priority = 'warn';
     } else if (p && (classifySlope(p.slope) === 'dn-s' || classifySlope(p.slope) === 'flat')) {
       // Descente ou plat : fenêtre digestive idéale → chews/gel
-      const solid = pickSolid(kcalPerEvent);
+      const solid = pickSolid(carbsPerEvent);
       action = 'Fenêtre digestive ✓ — Apport solide';
       detail = (solid ? fmtProd(solid) : 'Chews / gel') + addElectro;
-      kcal = Math.round(kcalPerEvent);
+      carbs = solid ? prodCarbs(solid) : Math.round(carbsPerEvent);
       eau_ml = Math.round(mlPerHour / 60 * intervalMins);
       priority = 'prio';
     } else {
       // Montée ou autre → gel rapide
-      const solid = pickSolid(kcalPerEvent);
+      const solid = pickSolid(carbsPerEvent);
       action = 'Gel ou boisson + eau';
       detail = (solid ? fmtProd(solid) : 'Gel glucides rapides') + addElectro;
-      kcal = Math.round(kcalPerEvent);
+      carbs = solid ? prodCarbs(solid) : Math.round(carbsPerEvent);
       eau_ml = Math.round(mlPerHour / 60 * intervalMins);
       priority = 'normal';
     }
@@ -794,7 +800,7 @@ function buildNutritionPlan(course, cfg) {
       label: fmtTime(nextEvent) + (p ? ` — km ${(p.dist/1000).toFixed(1)}` : ''),
       action,
       detail,
-      kcal,
+      carbs,
       eau_ml: Math.round(eau_ml),
       priority,
       ratio
@@ -815,7 +821,7 @@ function buildNutritionPlan(course, cfg) {
     action: 'Récupération CRITIQUE — Fenêtre anabolique 30 min',
     detail: `25-30g protéines · 60-80g glucides rapides · 500 ml eau${postElectro ? ' + 1× ' + postElectro.name : ' + électrolytes'}`,
     priority: 'prio',
-    kcal: Math.round(totalKcal * 0.08),
+    carbs: 70,
     eau_ml: 500
   });
 
@@ -833,17 +839,19 @@ function buildNutritionPlan(course, cfg) {
   });
 
   // Totaux
-  const totalKcalPlan = events.filter(e => e.timeMins >= 0 && e.timeMins <= totalMins)
-    .reduce((s, e) => s + (e.kcal || 0), 0);
-  const totalEau = events.filter(e => e.timeMins >= 0 && e.timeMins <= totalMins)
-    .reduce((s, e) => s + (e.eau_ml || 0), 0);
+  const raceEv = events.filter(e => e.timeMins >= 0 && e.timeMins <= totalMins);
+  const totalCarbsPlan = raceEv.reduce((s, e) => s + (e.carbs || 0), 0);
+  const totalEau = raceEv.reduce((s, e) => s + (e.eau_ml || 0), 0);
+  const avgCarbsH = totalMins > 0 ? Math.round(totalCarbsPlan / (totalMins / 60)) : 0;
 
   return {
     events,
     inventory,
     selectedProductObjs: sel,
-    totalKcalPlan,
-    totalKcal: Math.round(totalKcal),
+    carbsH,
+    totalCarbs: Math.round(totalCarbs),
+    totalCarbsPlan: Math.round(totalCarbsPlan),
+    avgCarbsH,
     totalEau: Math.round(totalEau / 1000 * 10) / 10,
     isUltra,
     gluPct: cfg.gluPct,
@@ -888,7 +896,7 @@ function renderProfil() {
     <div class="card-title">Paramètres athlète</div>
     <div class="profile-grid">
       <div class="profile-item"><div class="pi-val">${cfg.poids} kg</div><div class="pi-lbl">Poids</div></div>
-      <div class="profile-item"><div class="pi-val">~${cfg.kcalH} kcal/h</div><div class="pi-lbl">Apport conseillé (auto)</div></div>
+      <div class="profile-item"><div class="pi-val">${cfg.carbsH} g/h</div><div class="pi-lbl">Glucides cible (auto)</div></div>
       <div class="profile-item"><div class="pi-val">${cfg.hydratMins} min</div><div class="pi-lbl">Intervalle hydrat.</div></div>
       <div class="profile-item"><div class="pi-val">${cfg.digest}</div><div class="pi-lbl">Tolérance digest.</div></div>
       <div class="profile-item"><div class="pi-val">${cfg.niveau}</div><div class="pi-lbl">Niveau</div></div>
@@ -1205,9 +1213,9 @@ function renderNutrition() {
   const plan = planData;
   const events = plan.events;
 
-  const totalKcalRace = events
+  const totalCarbsRace = events
     .filter(e => e.timeMins >= 0 && e.timeMins <= courseData.totalMins)
-    .reduce((s, e) => s + (e.kcal || 0), 0);
+    .reduce((s, e) => s + (e.carbs || 0), 0);
 
   let eventsHtml = events.map(e => {
     let cls = '';
@@ -1227,7 +1235,7 @@ function renderNutrition() {
           '<span class="nutr-badge" style="background:var(--surf2);color:var(--mut);border:1px solid var(--bdr)">Standard</span>'}
       </div>
       <div class="ne-body">${e.action}</div>
-      <div class="ne-detail">${e.detail}${e.kcal ? ` · <b style="color:var(--acc)">${e.kcal} kcal</b>` : ''}${e.eau_ml ? ` · 💧 ${e.eau_ml} ml` : ''}</div>
+      <div class="ne-detail">${e.detail}${e.carbs ? ` · <b style="color:var(--acc)">${e.carbs} g glucides</b>` : ''}${e.eau_ml ? ` · 💧 ${e.eau_ml} ml` : ''}</div>
     </div>`;
   }).join('');
 
@@ -1247,8 +1255,8 @@ function renderNutrition() {
   <div class="section-title">Protocole Nutritionnel</div>
 
   <div class="stat-row">
-    <div class="stat"><div class="stat-val">${Math.round(totalKcalRace)}</div><div class="stat-lbl">kcal plan</div></div>
-    <div class="stat"><div class="stat-val">${plan.totalKcal}</div><div class="stat-lbl">kcal théorie</div></div>
+    <div class="stat"><div class="stat-val">${Math.round(totalCarbsRace)}g</div><div class="stat-lbl">Glucides total</div></div>
+    <div class="stat"><div class="stat-val">${plan.avgCarbsH}</div><div class="stat-lbl">g/h moyen</div></div>
     <div class="stat"><div class="stat-val">${plan.totalEau}L</div><div class="stat-lbl">Eau prévue</div></div>
     <div class="stat"><div class="stat-val">${events.filter(e => e.timeMins >= 0 && e.timeMins <= courseData.totalMins).length}</div><div class="stat-lbl">Ravitos</div></div>
   </div>
@@ -1342,7 +1350,7 @@ function renderExport() {
       <b>Course :</b> ${nomCourse}<br>
       <b>Distance :</b> ${(courseData.totalDist/1000).toFixed(1)} km · D+ ${courseData.dpPos}m<br>
       <b>Temps estimé :</b> ${fmtTime(courseData.totalMins)}<br>
-      <b>Kcal prévues :</b> ~${planData.totalKcal} kcal total<br>
+      <b>Glucides prévus :</b> ~${planData.totalCarbsPlan}g (${planData.avgCarbsH} g/h)<br>
       <b>Hydratation :</b> ~${planData.totalEau}L<br>
       <b>Nombre d'apports :</b> ${planData.events.filter(e=>e.timeMins>=0&&e.timeMins<=courseData.totalMins).length} ravitaillements
     </div>
@@ -1456,7 +1464,7 @@ function exportPDFComplet() {
   y = sectionTitle(y, 'PROFIL ATHLÈTE');
   const profItems = [
     [`Poids`, `${config.poids} kg`],
-    [`Apport`, `~${config.kcalH} kcal/h`],
+    [`Glucides`, `${config.carbsH} g/h`],
     [`Hydratation`, `/${config.hydratMins} min`],
     [`Digest.`, config.digest],
     [`Niveau`, config.niveau],
@@ -1634,11 +1642,11 @@ function exportPDFComplet() {
   y = sectionTitle(y, 'PLAN NUTRITIONNEL — TIMELINE');
 
   // Totaux
-  const totalKcalRace = plan.events.filter(e=>e.timeMins>=0&&e.timeMins<=c.totalMins).reduce((s,e)=>s+(e.kcal||0),0);
+  const totalCarbsRace = plan.events.filter(e=>e.timeMins>=0&&e.timeMins<=c.totalMins).reduce((s,e)=>s+(e.carbs||0),0);
   const totW = (W - pad*2) / 4;
   const tots = [
-    [Math.round(totalKcalRace)+' kcal','Plan course'],
-    [plan.totalKcal+' kcal','Théorique'],
+    [Math.round(totalCarbsRace)+' g','Glucides total'],
+    [plan.avgCarbsH+' g/h','Moyenne'],
     [plan.totalEau+'L','Hydratation'],
     [plan.events.filter(e=>e.timeMins>=0&&e.timeMins<=c.totalMins).length,'Ravitos'],
   ];
@@ -1654,9 +1662,9 @@ function exportPDFComplet() {
   y += 18;
 
   // Événements nutritionnels
-  const colsN = [22,18,80,26,14];
+  const colsN = [20,16,82,24,16];
   const colXN = [0]; colsN.forEach((w,i)=>colXN.push(colXN[i]+w));
-  const headsN = ['Heure','km','Action nutritionnelle','Kcal','Eau'];
+  const headsN = ['Heure','km','Action nutritionnelle','Glucides','Eau'];
   headsN.forEach((h,i) => {
     cell(pad+colXN[i], y, colsN[i]-1, rowH, SURF, MUT, h, 7, true);
   });
@@ -1674,8 +1682,8 @@ function exportPDFComplet() {
     const rowData = [
       fmtTime(e.timeMins),
       e.km.toFixed(1),
-      e.action.slice(0, 55),
-      (e.kcal||0).toString(),
+      e.action.slice(0, 58),
+      (e.carbs||0)+'g',
       (e.eau_ml||0)+'ml',
     ];
     rowData.forEach((v, i) => {
@@ -1801,7 +1809,7 @@ function exportPDFMemo() {
     // Colonnes : heure, km, action (courte), kcal, eau, signal
     const colWM = [18, 12, 72, 16, 14];
     const colXM = [0]; colWM.forEach((w,i)=>colXM.push(colXM[i]+w));
-    const headsM = ['Heure','km','Action','kcal','💧ml'];
+    const headsM = ['Heure','km','Action','Gluc.','💧ml'];
     const rowH = 7.5;
     const baseX = offsetX + 4;
 
@@ -1825,7 +1833,7 @@ function exportPDFMemo() {
                    e.priority === 'warn' ? WARN_C :
                    e.priority === 'alert' ? RED : TXT;
 
-      const row = [fmtTime(e.timeMins), e.km.toFixed(1), e.action.slice(0,45), (e.kcal||0).toString(), (e.eau_ml||0).toString()];
+      const row = [fmtTime(e.timeMins), e.km.toFixed(1), e.action.slice(0,45), (e.carbs||0)+'g', (e.eau_ml||0).toString()];
       row.forEach((v,i) => {
         doc.setFillColor(...bg);
         doc.rect(baseX+colXM[i], y, colWM[i]-0.5, rowH-0.5, 'F');
@@ -1892,23 +1900,25 @@ function generer() {
 
   const poids = parseInt(document.getElementById('fPoids').value) || 70;
   const niveau = getRadio('rNiveau') || 'confirme';
-  const isUltraEffort = (gpxData[gpxData.length-1].dist > 50000) || (tpsMin > 360);
+  const isUltraEffort = (gpxData._realDist || gpxData[gpxData.length-1].dist) > 50000 || (tpsMin > 360);
 
-  // Apport calorique recommandé (kcal/h) auto-calculé.
-  // Référence trail : l'apport ingérable plafonne ~60-90 g glucides/h.
-  // On module selon poids et durée d'effort (capacité d'absorption entraînée).
-  // Base ~3 kcal/kg/h, plafonnée pour rester réaliste digestivement.
-  let kcalH;
-  if (isUltraEffort) kcalH = Math.round(Math.min(280, Math.max(220, poids * 3.4)));
-  else if (tpsMin > 180) kcalH = Math.round(Math.min(240, Math.max(180, poids * 2.9)));
-  else kcalH = Math.round(Math.min(220, Math.max(150, poids * 2.6)));
+  // Objectif glucidique (g/h) — métrique principale pour le trailer.
+  // Références : 30-60 g/h effort court, 60-90 g/h endurance, jusqu'à 90+ sur ultra
+  // chez l'athlète entraîné (intestin entraîné). Module selon durée et niveau.
+  let carbsH;
+  if (isUltraEffort)      carbsH = (niveau === 'ultra') ? 90 : 75;   // ultra
+  else if (tpsMin > 180)  carbsH = (niveau === 'debutant') ? 50 : 70; // 3h+
+  else                    carbsH = (niveau === 'debutant') ? 40 : 60; // court
+  // kcalH dérivé des glucides (1g = 4 kcal), arrondi
+  const kcalH = Math.round(carbsH * 4 / 0.92); // ~92% des kcal viennent des glucides
 
   config = {
     poids,
-    kcalH,                 // auto-calculé
+    carbsH,                // objectif glucides g/h (métrique principale)
+    kcalH,                 // dérivé (info secondaire)
     hydratMins: parseInt(document.getElementById('fHydrat').value) || 20,
-    gluPct: 80,            // standard trail : glucides prioritaires en course
-    protPct: 10,           // standard fixe
+    gluPct: 80,
+    protPct: 10,
     digest: getRadio('rDigest') || 'normale',
     niveau,
     meteo: getRadio('rMeteo') || 'tempere',
