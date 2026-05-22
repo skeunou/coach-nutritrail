@@ -195,6 +195,60 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .salty-table td{padding:8px;border-bottom:1px solid rgba(42,42,48,.6)}
 .salty-table td:not(:first-child){text-align:right;color:var(--acc);white-space:nowrap}
 
+/* MON PLACARD */
+.pantry-trigger{width:100%;display:flex;align-items:center;gap:14px;padding:16px;background:var(--surf2);border:1px solid var(--bdr);border-radius:10px;cursor:pointer;transition:.15s;text-align:left}
+.pantry-trigger:hover{border-color:var(--acc);background:rgba(232,255,71,.04)}
+.pantry-icon{font-size:26px;flex-shrink:0}
+.pantry-trigger-txt{flex:1;display:flex;flex-direction:column;gap:2px}
+#pantryCount{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;color:var(--acc)}
+.pantry-trigger-sub{font-size:11px;color:var(--mut)}
+.pantry-trigger-arrow{font-size:20px;color:var(--mut)}
+.pantry-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.pantry-chip{font-size:11px;padding:3px 9px;border-radius:12px;background:var(--surf2);border:1px solid var(--bdr);color:var(--mut)}
+
+.pantry-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1100;justify-content:flex-end}
+.pantry-overlay.show{display:flex}
+.pantry-panel{width:min(440px,92vw);height:100%;background:var(--bg);border-left:1px solid var(--bdr);display:flex;flex-direction:column;animation:slideIn .25s ease}
+@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+.pantry-head{display:flex;justify-content:space-between;align-items:flex-start;padding:18px 20px;border-bottom:1px solid var(--bdr)}
+.pantry-title{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:2px;color:var(--acc)}
+.pantry-subtitle{font-size:12px;color:var(--mut);margin-top:2px}
+.pantry-close{font-size:22px;color:var(--mut);cursor:pointer;line-height:1}
+.pantry-close:hover{color:var(--txt)}
+.pantry-tools{padding:14px 20px;border-bottom:1px solid var(--bdr)}
+.pantry-search{width:100%;background:var(--surf2);border:1px solid var(--bdr);border-radius:8px;color:var(--txt);padding:10px 12px;font-size:13px;outline:none}
+.pantry-search:focus{border-color:var(--acc)}
+.pantry-filters{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.pantry-filter{font-size:11px;padding:5px 12px;border-radius:14px;background:var(--surf2);border:1px solid var(--bdr);color:var(--mut);cursor:pointer;transition:.15s;user-select:none}
+.pantry-filter.active{border-color:var(--acc);color:var(--acc);background:rgba(232,255,71,.08)}
+.pantry-list{flex:1;overflow-y:auto;padding:8px 20px 20px}
+.brand-group{margin-top:14px}
+.brand-head{display:flex;align-items:center;justify-content:space-between;padding:8px 0;cursor:pointer;border-bottom:1px solid var(--bdr)}
+.brand-name{font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;color:var(--txt)}
+.brand-count{font-size:11px;color:var(--mut)}
+.brand-toggle{font-size:13px;color:var(--mut);transition:.2s}
+.brand-group.collapsed .brand-items{display:none}
+.brand-group.collapsed .brand-toggle{transform:rotate(-90deg)}
+.brand-items{padding-top:4px}
+.pantry-prod{display:flex;align-items:center;gap:10px;padding:9px 4px;cursor:pointer;border-bottom:1px solid rgba(42,42,48,.5)}
+.pantry-prod:hover{background:rgba(255,255,255,.02)}
+.pantry-prod .prod-check{width:18px;height:18px;border-radius:5px;border:2px solid var(--bdr);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;color:#000;transition:.15s}
+.pantry-prod.sel .prod-check{background:var(--acc);border-color:var(--acc)}
+.pantry-prod-info{flex:1;min-width:0}
+.pantry-prod-name{font-size:13px;font-weight:500;color:var(--txt)}
+.pantry-prod-meta{font-size:11px;color:var(--mut);margin-top:1px}
+.pantry-type-badge{font-size:9px;letter-spacing:.5px;text-transform:uppercase;padding:2px 7px;border-radius:4px;flex-shrink:0}
+.tb-gel{background:rgba(232,255,71,.12);color:var(--acc)}
+.tb-chew{background:rgba(167,139,250,.12);color:var(--purp)}
+.tb-bar{background:rgba(255,107,53,.12);color:var(--acc2)}
+.tb-iso{background:rgba(56,189,248,.12);color:var(--blue)}
+.tb-electro{background:rgba(74,222,128,.12);color:var(--grn)}
+.tb-puree{background:rgba(255,149,0,.12);color:var(--warn)}
+.tb-other{background:var(--surf2);color:var(--mut)}
+.pantry-footer{display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--bdr)}
+.pantry-footer .btn{flex:1}
+.pantry-empty{text-align:center;color:var(--mut);font-size:13px;padding:30px}
+
 /* CHECKLIST */
 .checklist{list-style:none;margin-top:12px}
 .checklist li{padding:10px 0;border-bottom:1px solid rgba(42,42,48,.6);display:flex;align-items:center;gap:10px;font-size:13px}
@@ -289,9 +343,16 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <input type="text" id="fNomCourse" placeholder="ex: Trail des Crêtes 2026">
     </div>
     <div class="form-group full">
-      <label>Produits disponibles (Precision Fuel & Hydration)</label>
-      <div id="productGrid" class="product-grid"></div>
-      <div class="hint">Coche les produits que tu emporteras. Le plan piochera dedans selon les moments de course.</div>
+      <label>Mon Placard — produits disponibles</label>
+      <button type="button" class="pantry-trigger" onclick="openPantry()">
+        <span class="pantry-icon">🥫</span>
+        <span class="pantry-trigger-txt">
+          <span id="pantryCount">0 produit</span>
+          <span class="pantry-trigger-sub">Clique pour gérer ta sélection</span>
+        </span>
+        <span class="pantry-trigger-arrow">→</span>
+      </button>
+      <div id="pantryChips" class="pantry-chips"></div>
     </div>
 
     <div class="form-group full">
@@ -346,6 +407,28 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div style="font-size:13px;color:var(--mut);margin-top:8px" id="loadingMsg">Analyse du profil GPX...</div>
   </div>
 
+</div>
+
+<!-- ============================================================ PANNEAU MON PLACARD ============================================================ -->
+<div id="pantryOverlay" class="pantry-overlay" onclick="if(event.target===this)closePantry()">
+  <div class="pantry-panel">
+    <div class="pantry-head">
+      <div>
+        <div class="pantry-title">🥫 Mon Placard</div>
+        <div class="pantry-subtitle" id="pantrySubtitle">Coche les produits que tu as chez toi</div>
+      </div>
+      <span class="pantry-close" onclick="closePantry()">✕</span>
+    </div>
+    <div class="pantry-tools">
+      <input type="text" id="pantrySearch" class="pantry-search" placeholder="🔍 Rechercher un produit ou une marque..." oninput="renderPantry()">
+      <div class="pantry-filters" id="pantryFilters"></div>
+    </div>
+    <div class="pantry-list" id="pantryList"></div>
+    <div class="pantry-footer">
+      <button class="btn btn-outline btn-sm" onclick="clearPantry()">Tout décocher</button>
+      <button class="btn btn-primary btn-sm" onclick="closePantry()">Valider ma sélection</button>
+    </div>
+  </div>
 </div>
 
 <!-- ============================================================ PROFIL ============================================================ -->
@@ -404,11 +487,11 @@ let config = {};
 // ============================================================
 const CATALOG = [
   {id:"preci_pf_30_gel",brand:"Precision Fuel",name:"PF 30 Gel",type:"gel",carbs:30,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
-  {id:"preci_pf_90_gel",brand:"Precision Fuel",name:"PF 90 Gel",type:"gel",carbs:90,sodium:0,caffeine:0,volume:0,fractions:[1,0.667,0.333],moment:["pendant"]},
+  {id:"preci_pf_90_gel",brand:"Precision Fuel",name:"PF 90 Gel",type:"gel",carbs:90,sodium:0,caffeine:0,volume:0,fractions:[0.333],moment:["pendant"]},
   {id:"preci_pf_30_chew",brand:"Precision Fuel",name:"PF 30 Chew",type:"chew",carbs:30,sodium:0,caffeine:0,volume:0,fractions:[1,0.667,0.333],moment:["avant","pendant"]},
   {id:"preci_hydration_packets_pf_1500",brand:"Precision Fuel",name:"Hydration Packets (PF 1500)",type:"electro",carbs:0,sodium:750,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["avant","pendant"]},
   {id:"preci_hydration_packets_pf_500",brand:"Precision Fuel",name:"Hydration Packets (PF 500)",type:"electro",carbs:0,sodium:250,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["pendant"]},
-  {id:"preci_pf_90_drink_mix",brand:"Precision Fuel",name:"PF 90 Drink Mix",type:"iso",carbs:90,sodium:1000,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["pendant"]},
+  {id:"preci_pf_90_drink_mix",brand:"Precision Fuel",name:"PF 90 Drink Mix",type:"iso",carbs:90,sodium:1000,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5,0.333],moment:["pendant"]},
   {id:"ta_en_gel_energetique_citron",brand:"TA Energy",name:"Gel Énergétique Citron",type:"gel",carbs:33,sodium:50,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
   {id:"ta_en_gommes_energetiques",brand:"TA Energy",name:"Gommes Énergétiques",type:"chew",carbs:22,sodium:0,caffeine:0,volume:0,fractions:[1,0.667,0.333],moment:["pendant"]},
   {id:"ta_en_pastilles_electrolytes",brand:"TA Energy",name:"Pastilles Électrolytes",type:"electro",carbs:1,sodium:300,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["pendant"]},
@@ -422,7 +505,7 @@ const CATALOG = [
   {id:"decat_nougat_energetique",brand:"Décathlon (Aptonia)",name:"Nougat Énergétique",type:"bar",carbs:28,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
   {id:"maurt_gel_100",brand:"Maurten",name:"Gel 100",type:"gel",carbs:25,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
   {id:"maurt_gel_100_caf_100",brand:"Maurten",name:"Gel 100 CAF 100",type:"gel",carbs:25,sodium:0,caffeine:100,volume:0,fractions:[1,0.5],moment:["pendant","fin"]},
-  {id:"maurt_drink_mix_320",brand:"Maurten",name:"Drink Mix 320",type:"iso",carbs:79,sodium:200,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["pendant"]},
+  {id:"maurt_drink_mix_320",brand:"Maurten",name:"Drink Mix 320",type:"iso",carbs:79,sodium:200,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5,0.333],moment:["pendant"]},
   {id:"maurt_solid_160",brand:"Maurten",name:"Solid 160",type:"bar",carbs:40,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["avant","pendant"]},
   {id:"sis_go_isotonic_gel",brand:"SIS",name:"GO Isotonic Gel",type:"gel",carbs:22,sodium:0,caffeine:0,volume:60,fractions:[1,0.5],moment:["pendant"]},
   {id:"sis_beta_fuel_gel",brand:"SIS",name:"Beta Fuel Gel",type:"gel",carbs:40,sodium:0,caffeine:0,volume:60,fractions:[1,0.5],moment:["pendant"]},
@@ -448,12 +531,12 @@ const CATALOG = [
   {id:"sis_beta_fuel_chew",brand:"SIS",name:"Beta Fuel Chew",type:"chew",carbs:46,sodium:0,caffeine:0,volume:0,fractions:[1,0.667,0.333],moment:["pendant"]},
   {id:"overs_malto_dextrin_bio",brand:"Overstims",name:"Malto Dextrin Bio",type:"preload",carbs:94,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["avant","pendant"]},
   {id:"decat_boisson_de_recuperation_recup",brand:"Décathlon (Aptonia)",name:"Boisson de Récupération (Recup)",type:"recovery",carbs:21,sodium:200,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant","recup"]},
-  {id:"preci_pf_90_gel_caffeine",brand:"Precision Fuel",name:"PF 90 Gel + Caffeine",type:"gel",carbs:90,sodium:0,caffeine:300,volume:0,fractions:[1,0.667,0.333],moment:["pendant","fin"]},
+  {id:"preci_pf_90_gel_caffeine",brand:"Precision Fuel",name:"PF 90 Gel + Caffeine",type:"gel",carbs:90,sodium:0,caffeine:300,volume:0,fractions:[0.333],moment:["pendant","fin"]},
   {id:"preci_flow_gel_pf_30",brand:"Precision Fuel",name:"Flow Gel (PF 30)",type:"gel",carbs:30,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
   {id:"ta_en_gommes_energetiques_cafeine_cola",brand:"TA Energy",name:"Gommes Énergétiques Caféine (Cola)",type:"chew",carbs:22,sodium:0,caffeine:50,volume:0,fractions:[1,0.667,0.333],moment:["pendant"]},
   {id:"ta_en_gommes_energetiques_cafeine_cafe",brand:"TA Energy",name:"Gommes Énergétiques Caféine (Café)",type:"chew",carbs:22,sodium:0,caffeine:50,volume:0,fractions:[1,0.667,0.333],moment:["avant","pendant"]},
   {id:"ta_en_caffeine_shot",brand:"TA Energy",name:"Caffeine Shot",type:"shot",carbs:10,sodium:0,caffeine:200,volume:60,fractions:[1],moment:["fin"]},
-  {id:"maurt_drink_mix_320_caf_100",brand:"Maurten",name:"Drink Mix 320 CAF 100",type:"iso",carbs:79,sodium:200,caffeine:100,volume:500,fractions:[1,0.75,0.667,0.5],moment:["pendant"]},
+  {id:"maurt_drink_mix_320_caf_100",brand:"Maurten",name:"Drink Mix 320 CAF 100",type:"iso",carbs:79,sodium:200,caffeine:100,volume:500,fractions:[1,0.75,0.667,0.5,0.333],moment:["pendant"]},
   {id:"sis_go_energy_caffeine_gel",brand:"SIS",name:"GO Energy + Caffeine Gel",type:"gel",carbs:22,sodium:0,caffeine:75,volume:60,fractions:[1,0.5],moment:["pendant"]},
   {id:"sis_beta_fuel_nootropics_gel",brand:"SIS",name:"Beta Fuel + Nootropics Gel",type:"gel",carbs:40,sodium:0,caffeine:200,volume:60,fractions:[1,0.5],moment:["pendant","fin"]},
   {id:"overs_red_tonic",brand:"Overstims",name:"Red Tonic",type:"gel",carbs:25,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["fin"]},
@@ -473,34 +556,106 @@ let PRODUCTS = CATALOG;
 // Placard par défaut : un set Precision Fuel cohérent (gel, gel90, chew, électrolytes)
 let selectedProducts = ['preci_pf_30_gel','preci_pf_90_gel','preci_pf_30_chew','preci_pf_90_drink_mix','preci_hydration_packets_pf_1500'];
 
-function renderProductGrid() {
-  const grid = document.getElementById('productGrid');
-  if (!grid) return;
-  grid.innerHTML = PRODUCTS.map(p => {
-    const sel = selectedProducts.includes(p.id);
-    let meta = `${p.carbs}g glucides`;
-    if (p.kcal) meta += ` · ${p.kcal} kcal`;
-    if (p.sodium) meta += ` · ${p.sodium}mg Na`;
-    if (p.caf) meta += ` · ${p.caf}mg caféine`;
-    return `<div class="prod-item${sel?' sel':''}" data-pid="${p.id}" onclick="toggleProduct('${p.id}')">
-      <div class="prod-check">${sel?'✓':''}</div>
-      <div class="prod-info">
-        <div class="prod-name">${p.name}</div>
-        <div class="prod-meta">${meta}</div>
+// ----- MON PLACARD -----
+const TYPE_LABELS = { gel:'Gel', chew:'Gomme', bar:'Barre', iso:'Boisson', electro:'Électrolytes',
+  puree:'Purée', salty:'Salé', fat:'Lipide', shot:'Shot', preload:'Précharge', recovery:'Récup' };
+const TYPE_BADGE = { gel:'tb-gel', chew:'tb-chew', bar:'tb-bar', iso:'tb-iso', electro:'tb-electro',
+  puree:'tb-puree', salty:'tb-puree', fat:'tb-other', shot:'tb-other', preload:'tb-other', recovery:'tb-other' };
+let pantryFilter = 'all';
+const collapsedBrands = {};
+
+function productMeta(p) {
+  let m = `${p.carbs}g glucides`;
+  if (p.sodium) m += ` · ${p.sodium}mg Na`;
+  if (p.caffeine) m += ` · ${p.caffeine}mg caféine`;
+  return m;
+}
+
+function openPantry() {
+  document.getElementById('pantryOverlay').classList.add('show');
+  renderPantryFilters();
+  renderPantry();
+}
+function closePantry() {
+  document.getElementById('pantryOverlay').classList.remove('show');
+  updatePantrySummary();
+}
+function clearPantry() { selectedProducts = []; renderPantry(); }
+
+function renderPantryFilters() {
+  const types = [...new Set(CATALOG.map(p => p.type))];
+  const order = ['gel','chew','bar','iso','electro','puree','salty','fat','shot','preload','recovery'];
+  types.sort((a,b)=> order.indexOf(a)-order.indexOf(b));
+  const el = document.getElementById('pantryFilters');
+  el.innerHTML = `<span class="pantry-filter${pantryFilter==='all'?' active':''}" onclick="setPantryFilter('all')">Tous</span>` +
+    types.map(t => `<span class="pantry-filter${pantryFilter===t?' active':''}" onclick="setPantryFilter('${t}')">${TYPE_LABELS[t]||t}</span>`).join('');
+}
+function setPantryFilter(t) { pantryFilter = t; renderPantryFilters(); renderPantry(); }
+
+function renderPantry() {
+  const q = (document.getElementById('pantrySearch').value || '').toLowerCase().trim();
+  let list = CATALOG.filter(p => {
+    if (pantryFilter !== 'all' && p.type !== pantryFilter) return false;
+    if (q && !(p.name.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q))) return false;
+    return true;
+  });
+  // grouper par marque
+  const brands = {};
+  list.forEach(p => { (brands[p.brand] = brands[p.brand] || []).push(p); });
+  const container = document.getElementById('pantryList');
+  if (!list.length) { container.innerHTML = '<div class="pantry-empty">Aucun produit trouvé</div>'; return; }
+  container.innerHTML = Object.keys(brands).sort().map(brand => {
+    const prods = brands[brand];
+    const selCount = prods.filter(p => selectedProducts.includes(p.id)).length;
+    const collapsed = collapsedBrands[brand] ? ' collapsed' : '';
+    return `<div class="brand-group${collapsed}">
+      <div class="brand-head" onclick="toggleBrand('${brand.replace(/'/g,"\\'")}')">
+        <span class="brand-name">${brand}</span>
+        <span style="display:flex;align-items:center;gap:10px">
+          <span class="brand-count">${selCount>0?selCount+'/':''}${prods.length}</span>
+          <span class="brand-toggle">▼</span>
+        </span>
       </div>
-      <div class="prod-cat">${p.cat}</div>
+      <div class="brand-items">
+        ${prods.map(p => {
+          const sel = selectedProducts.includes(p.id);
+          return `<div class="pantry-prod${sel?' sel':''}" onclick="toggleProduct('${p.id}')">
+            <div class="prod-check">${sel?'✓':''}</div>
+            <div class="pantry-prod-info">
+              <div class="pantry-prod-name">${p.name}</div>
+              <div class="pantry-prod-meta">${productMeta(p)}</div>
+            </div>
+            <span class="pantry-type-badge ${TYPE_BADGE[p.type]||'tb-other'}">${TYPE_LABELS[p.type]||p.type}</span>
+          </div>`;
+        }).join('')}
+      </div>
     </div>`;
   }).join('');
 }
+function toggleBrand(b) { collapsedBrands[b] = !collapsedBrands[b]; renderPantry(); }
 
 function toggleProduct(id) {
   const i = selectedProducts.indexOf(id);
   if (i >= 0) selectedProducts.splice(i, 1);
   else selectedProducts.push(id);
-  renderProductGrid();
+  renderPantry();
+  updatePantrySummary();
 }
 
-function getProduct(id) { return PRODUCTS.find(p => p.id === id); }
+function updatePantrySummary() {
+  const n = selectedProducts.length;
+  const cntEl = document.getElementById('pantryCount');
+  if (cntEl) cntEl.textContent = n + ' produit' + (n>1?'s':'') + ' sélectionné' + (n>1?'s':'');
+  const chips = document.getElementById('pantryChips');
+  if (chips) {
+    chips.innerHTML = selectedProducts.map(getProduct).filter(Boolean)
+      .map(p => `<span class="pantry-chip">${p.name}</span>`).join('');
+  }
+}
+// Compat : ancien nom appelé à l'init
+function renderProductGrid() { updatePantrySummary(); }
+
+function getProduct(id) { return CATALOG.find(p => p.id === id); }
 
 function toggleSaltyTip() {
   document.getElementById('saltyTip').classList.toggle('show');
