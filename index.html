@@ -847,7 +847,8 @@ function buildNutritionPlan(course, cfg) {
   // Produit salé perso (Samoret & co) — défini par l'utilisateur
   const saltyFood = cfg.saltyFood && cfg.saltyFood.enabled ? cfg.saltyFood : null;
   let lastSaltyHour = -99;    // pour espacer le salé (≥2h)
-  let lastForm = null;        // 'solide' | 'liquide' — pour l'anti-monotonie
+  let lastForm = null;        // forme du solide de l'heure précédente
+  let lastForm2 = null;       // forme d'il y a 2 heures (pour limiter 2 salés de suite)
 
   for (let h = 1; h <= nbHours; h++) {
     const tMin = h * 60;
@@ -864,81 +865,61 @@ function buildNutritionPlan(course, cfg) {
     let warnRefill = false;
     let thisForm = null;     // forme dominante de l'heure (pour anti-monotonie)
 
-    // ---------- ANTI-MONOTONIE ----------
-    // Si l'heure précédente était "solide", on privilégie le "liquide" cette heure
-    // (et inversement) pour reposer l'estomac. En dernier 20%, on force liquide.
-    const preferLiquid = isLastFifth || (lastForm === 'solide');
-
-    // ---------- APPORT SALÉ (vraie nourriture) ----------
-    // Autorisé seulement à partir de la 4e heure, et au plus 1 fois / 2h.
+    // ---------- LOGIQUE D'APPORT ----------
+    // Principe : CHAQUE heure combine une base LIQUIDE (boisson ISO) + un peu de
+    // SOLIDE (sucré ou salé). Jamais 100% liquide. On alterne la NATURE du solide :
+    // dès la 4e h, le salé revient plus souvent que le sucré (alterne salé/sucré,
+    // mais privilégie le salé). Le dernier 20% allège le solide (semi-liquide) mais
+    // garde un apport solide léger pour ne pas être 100% liquide.
     let usedSalty = false;
-    if (saltyFood && h >= 4 && !isLastFifth && (h - lastSaltyHour) >= 2 && !preferLiquid) {
-      parts.push(`${saltyFood.name} (${saltyFood.carbs}g)`);
-      carbsSum += saltyFood.carbs;
-      sodiumSum += saltyFood.sodium;
+    const half = drink ? (drink.flaskCarbs || Math.round(drink.carbs/2)) : 30;
+
+    // 1) Décider du SOLIDE de l'heure.
+    //    Dès la 4e h : le SALÉ domine (revient souvent), entrecoupé de sucré ~1 fois
+    //    sur 3 pour varier. Avant la 4e h : sucré uniquement, mais on varie la source.
+    let solidPart = null, solidCarbs = 0, solidSodium = 0;
+    const saltyReady = saltyFood && h >= 4;
+    // Insérer du sucré (au lieu du salé) si : pas de salé dispo, OU on a déjà
+    // enchaîné 2 salés (on glisse 1 sucré pour varier).
+    const twoSaltyInARow = (lastForm === 'sale' && lastForm2 === 'sale');
+    if (saltyReady && !twoSaltyInARow) {
+      solidPart = `${saltyFood.name} (${saltyFood.carbs}g)`;
+      solidCarbs = saltyFood.carbs; solidSodium = saltyFood.sodium;
       addInv(saltyFood.name, 1);
-      lastSaltyHour = h;
-      usedSalty = true;
-      thisForm = 'solide';
+      lastSaltyHour = h; usedSalty = true; thisForm = 'sale';
+    } else {
+      // Solide sucré (alterne la source : gel90 fractionné / gomme / gel selon dispo)
+      const solid = pickSolid30(isLastThird);
+      if (solid) { solidPart = solid.label; solidCarbs = solid.carbs; thisForm = 'sucre'; }
     }
 
-    // ---------- GLUCIDES PRINCIPAUX ----------
-    if (!usedSalty) {
-      if (preferLiquid && drink) {
-        // Heure "liquide" : viser carbsH via la boisson ISO SANS dépasser.
-        const half = drink.flaskCarbs || Math.round(drink.carbs/2);
-        let needed = Math.floor(carbsH / half);          // ne pas dépasser
-        if (carbsH - needed*half >= half*0.8) needed += 1; // arrondi sup si proche
-        needed = Math.max(1, Math.min(4, needed));
-        const lbl = needed === 1 ? `1/2 flasque ${drink.name} (${half}g)`
-                  : needed === 2 ? `1 flasque ${drink.name} (${half*2}g)`
-                  : `${(needed/2).toFixed(1)} flasque ${drink.name} (${half*needed}g)`;
-        parts.push(lbl);
-        carbsSum += needed * half;
-        sodiumSum += (drink.sodium || 0) * needed * 0.5;
-        addInv(drink.name + ' (dose 1/2 flasque)', needed);
-        flaskIsoLeft -= needed * 0.5;
-        if (flaskIsoLeft < 0.5) { warnRefill = true; flaskIsoLeft += 1.0; }
-        thisForm = 'liquide';
-      } else if (!isLastFifth) {
-        // Heure "solide/semi" : gel/gomme/gel90 fractionné
-        const solid = pickSolid30(isLastThird);
-        if (solid) { parts.push(solid.label); carbsSum += solid.carbs; thisForm = 'solide'; }
-      }
+    // 2) Base LIQUIDE : compléter jusqu'à carbsH sans dépasser, via la boisson ISO
+    if (drink) {
+      const deficit = Math.max(0, carbsH - solidCarbs);
+      let needed = Math.floor(deficit / half);
+      if (deficit - needed*half >= half*0.8) needed += 1;
+      // garantir au moins 1/2 flasque (toujours un peu de liquide glucidique)
+      needed = Math.max(1, Math.min(4, needed));
+      const lbl = needed === 1 ? `1/2 flasque ${drink.name} (${half}g)`
+                : needed === 2 ? `1 flasque ${drink.name} (${half*2}g)`
+                : `${(needed/2).toFixed(1)} flasque ${drink.name} (${half*needed}g)`;
+      parts.push(lbl);
+      carbsSum += needed * half;
+      sodiumSum += (drink.sodium || 0) * needed * 0.5;
+      addInv(drink.name + ' (dose 1/2 flasque)', needed);
+      flaskIsoLeft -= needed * 0.5;
+      if (flaskIsoLeft < 0.5) { warnRefill = true; flaskIsoLeft += 1.0; }
     }
 
-    // ---------- COMPLÉMENT GLUCIDIQUE (sans surdosage) ----------
-    // On complète UNIQUEMENT si le déficit est SUBSTANTIEL (≥ une portion ~25g),
-    // sinon on accepte d'être légèrement sous la cible (mieux que surdoser).
-    const carbDeficit = carbsH - carbsSum;
-    if (carbDeficit >= 25) {
-      if (isLastFifth && drink) {
-        const half = drink.flaskCarbs || Math.round(drink.carbs/2);
-        let needed = Math.floor(carbDeficit / half);
-        needed = Math.max(1, Math.min(2, needed));
-        carbsSum += needed*half; sodiumSum += (drink.sodium||0)*needed*0.5;
-        addInv(drink.name + ' (dose 1/2 flasque)', needed);
-        // fusionner avec la flasque déjà présente (affichage propre)
-        flaskIsoLeft -= needed*0.5; if (flaskIsoLeft < 0.5) { warnRefill = true; flaskIsoLeft += 1.0; }
-        // recomposer le libellé flasque global
-        const totalHalf = parts.filter(s=>s.includes(drink.name)).length; // approx
-        if (!thisForm) thisForm = 'liquide';
-        // ajouter une mention compacte
-        parts.push(`+${needed===1?'1/2':needed/2} flasque ${drink.name}`);
-      } else if (!isLastFifth && drink && thisForm === 'solide') {
-        // Solide déjà pris : compléter avec ISO seulement si déficit ≥ 25g
-        const half = drink.flaskCarbs || Math.round(drink.carbs/2);
-        let needed = Math.floor(carbDeficit / half);
-        needed = Math.max(1, Math.min(2, needed));
-        const lbl = needed === 1 ? `1/2 flasque ${drink.name} (${half}g)` : `1 flasque ${drink.name} (${half*2}g)`;
-        parts.push(lbl); carbsSum += needed*half; sodiumSum += (drink.sodium||0)*needed*0.5;
-        addInv(drink.name + ' (dose 1/2 flasque)', needed);
-        flaskIsoLeft -= needed*0.5; if (flaskIsoLeft < 0.5) { warnRefill = true; flaskIsoLeft += 1.0; }
-      } else if (gels.length && !isLastFifth && thisForm === 'liquide') {
-        // Base liquide insuffisante : ajouter 1 gel pour la texture (anti-monotonie OK)
-        const g = gels[0];
-        parts.push(`1× ${g.name} (${g.carbs}g)`); carbsSum += g.carbs; addInv(g.name,1);
-      }
+    // 3) Ajouter le SOLIDE (toujours, même en fin de course : un peu de solide léger)
+    if (solidPart) {
+      parts.push(solidPart);
+      carbsSum += solidCarbs;
+      sodiumSum += solidSodium;
+    } else if (!drink && gels.length) {
+      // Filet de sécurité : aucun produit liquide ni solide trouvé
+      const g = gels[0];
+      parts.push(`1× ${g.name} (${g.carbs}g)`); carbsSum += g.carbs; addInv(g.name,1);
     }
 
     // ---------- COHÉRENCE HYDRIQUE : compléter le VOLUME à mlPerHour ----------
@@ -981,6 +962,7 @@ function buildNutritionPlan(course, cfg) {
     else if (slope < -3) { priority = 'prio'; note = 'Descente : fenêtre digestive idéale'; }
     else if (slope > 8)  { priority = 'normal'; note = 'Montée : privilégier liquide'; }
 
+    lastForm2 = lastForm;
     lastForm = thisForm || lastForm;
 
     events.push({
