@@ -795,34 +795,49 @@ function buildNutritionPlan(course, cfg) {
   }
   function slopeAt(p) { return p ? p.slope : 0; }
 
-  // ----- ÉTAT DE FRACTIONNEMENT DU GROS GEL (90g -> 3×30g) -----
-  // On entame un gel 90 et on le consomme sur 3 heures successives.
-  let bigGelRemaining = 0;          // portions de 30g restantes du gel 90 entamé
-  const bigGel = bigGels[0] || null;
+  // ----- BANQUE DE SOLIDES SUCRÉS (tous les produits cochés) -----
+  // On fait TOURNER tous les sucrés cochés (gels, gommes, gel caféine, gel 90...)
+  // pour varier les plaisirs à chaque heure. Le gel 90 compte comme 3 portions de
+  // 30g réparties dans la rotation (jamais 3 fois d'affilée).
+  const sweetProducts = sel.filter(p => p.type === 'gel' || p.type === 'chew');
+  // Construire une file de "portions de 30g" : chaque produit non fractionnable = 1 entrée,
+  // chaque gel 90 = autant d'entrées que de portions (splittable), mais on intercale.
+  const big90 = {};  // suivi des portions restantes par gel 90 (par id)
+  sweetProducts.forEach(p => { if (p.splittable) big90[p.id] = p.splittable; });
+  let sweetIdx = 0;
 
-  // Sélectionne ~30g de glucides "solides" pour une heure donnée.
-  function pickSolid30(preferCaffeine) {
-    if (bigGelRemaining > 0 && bigGel) {
-      bigGelRemaining--;
-      addInv(bigGel.name, 1/bigGel.splittable);
-      return { label: `1/${bigGel.splittable} de ${bigGel.name} (30g)`, carbs: bigGel.carbs/bigGel.splittable };
+  function makeSolid(g) {
+    if (g.splittable) {
+      addInv(g.name, 1/g.splittable);
+      return { label:`1/${g.splittable} de ${g.name} (30g)`, carbs:g.carbs/g.splittable };
     }
+    const n = Math.max(1, Math.round(30 / g.carbs));
+    addInv(g.name, n);
+    return { label:`${n}× ${g.name} (${g.carbs*n}g)`, carbs:g.carbs*n };
+  }
+
+  // Sélectionne ~30g de glucides sucrés en variant la source à chaque appel.
+  function pickSolid30(preferCaffeine) {
+    if (!sweetProducts.length) return null;
+    // Coup de fouet caféine prioritaire si demandé (dernier tiers)
     if (preferCaffeine && caffGel) {
       addInv(caffGel.name, 1);
       return { label:`1× ${caffGel.name} (${caffGel.carbs}g)`, carbs:caffGel.carbs };
     }
-    if (bigGel) {
-      bigGelRemaining = bigGel.splittable - 1;
-      addInv(bigGel.name, 1/bigGel.splittable);
-      return { label:`1/${bigGel.splittable} de ${bigGel.name} (30g)`, carbs:bigGel.carbs/bigGel.splittable };
+    // Rotation simple : produit suivant. Pour un gel 90, on ne le ressert que s'il
+    // lui reste des portions (sinon on saute au produit suivant).
+    let tries = 0;
+    while (tries < sweetProducts.length * 2) {
+      const g = sweetProducts[sweetIdx % sweetProducts.length];
+      sweetIdx++; tries++;
+      if (g.splittable) {
+        if (big90[g.id] > 0) { big90[g.id]--; return makeSolid(g); }
+        else continue; // gel 90 épuisé, passer au suivant
+      }
+      return makeSolid(g);
     }
-    if (gels.length) {
-      const g = gels[0];
-      const n = Math.max(1, Math.round(30 / g.carbs));
-      addInv(g.name, n);
-      return { label:`${n}× ${g.name} (${g.carbs*n}g)`, carbs:g.carbs*n };
-    }
-    return null;
+    // Tous les gels 90 épuisés et rien d'autre : reprendre le 1er produit
+    return makeSolid(sweetProducts[0]);
   }
 
   const events = [];
@@ -1069,6 +1084,7 @@ function renderProfil() {
     </div>
     <div style="font-size:11px;color:var(--mut);margin-top:8px">Répartition standard course : glucides prioritaires (énergie rapide). Apport calorique calculé selon ton poids et la durée d'effort.</div>
     ${(cfg.produits && cfg.produits.length) ? `<div style="margin-top:14px"><b style="color:var(--txt);font-size:13px">Produits emportés :</b><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${cfg.produits.map(getProduct).filter(Boolean).map(p => `<span class="nutr-badge" style="background:var(--surf2);color:var(--txt);border:1px solid var(--bdr)">${p.name} <span style="color:var(--mut)">${p.carbs}g</span></span>`).join('')}</div></div>` : '<div style="margin-top:12px;font-size:12px;color:var(--warn)">⚠️ Aucun produit sélectionné — le plan restera générique</div>'}
+    <div style="margin-top:10px;font-size:12px;color:var(--mut)">Option salée : <b style="color:${cfg.saltyFood&&cfg.saltyFood.enabled?'var(--grn)':'var(--mut)'}">${cfg.saltyFood&&cfg.saltyFood.enabled?'activée':'désactivée'}</b></div>
   </div>
 
   <div class="card">
