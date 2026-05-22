@@ -303,12 +303,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <span class="radio-opt" id="saltyOff" onclick="setSalty(false)">Désactivé</span>
         <span class="radio-opt sel" id="saltyOn" onclick="setSalty(true)">Activé</span>
       </div>
-      <div id="saltyFields" style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-top:8px">
-        <input type="text" id="fSaltyName" placeholder="Nom (ex: 1/4 wrap Samoret)" value="1/4 wrap Samoret">
-        <input type="number" id="fSaltyCarbs" placeholder="Glucides (g)" value="20">
-        <input type="number" id="fSaltySodium" placeholder="Sodium (mg)" value="300">
-      </div>
-      <div class="hint">Intégré à partir de la 4e heure, max 1×/2-3h (digestion). Clique sur (i) pour les équivalences.</div>
+      <div class="hint">Le plan placera des créneaux « option salée » à partir de la 4e heure. Tu choisis sur le moment quoi manger (clique sur (i) pour les équivalences ~15-20g glucides / ~300mg sodium).</div>
     </div>
   </div>
 
@@ -455,17 +450,12 @@ function toggleSaltyTip() {
 function setSalty(on) {
   document.getElementById('saltyOn').classList.toggle('sel', on);
   document.getElementById('saltyOff').classList.toggle('sel', !on);
-  document.getElementById('saltyFields').style.display = on ? 'grid' : 'none';
 }
 function getSaltyConfig() {
   const on = document.getElementById('saltyOn').classList.contains('sel');
   if (!on) return { enabled: false };
-  return {
-    enabled: true,
-    name: (document.getElementById('fSaltyName').value || 'Salé maison').trim(),
-    carbs: parseInt(document.getElementById('fSaltyCarbs').value) || 20,
-    sodium: parseInt(document.getElementById('fSaltySodium').value) || 300
-  };
+  // Valeurs moyennes génériques (la personne choisit son aliment sur le moment)
+  return { enabled: true, name: 'Option salée', carbs: 18, sodium: 300 };
 }
 
 // ============================================================
