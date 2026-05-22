@@ -236,10 +236,6 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <input type="number" id="fPoids" value="70" min="40" max="120">
     </div>
     <div class="form-group">
-      <label>Intervalle hydratation (min)</label>
-      <input type="number" id="fHydrat" value="20" min="10" max="60">
-    </div>
-    <div class="form-group">
       <label>Glucides / heure</label>
       <div class="radio-group" id="rCarbsMode">
         <span class="radio-opt sel" onclick="setCarbsMode('auto')" data-val="auto">🤖 Auto</span>
@@ -356,14 +352,14 @@ const PRODUCTS = [
   { id:'pf30gel',  name:'PF 30 Gel',          cat:'Gel',     type:'gel',    carbs:30, kcal:120, sodium:0,    caf:0,   unit:'gel',     liquid:false },
   { id:'pf30caf',  name:'PF 30 Caffeine Gel', cat:'Gel',     type:'gel',    carbs:30, kcal:120, sodium:0,    caf:100, unit:'gel',     liquid:false },
   { id:'pf30chew', name:'PF 30 Chew',         cat:'Chews',   type:'chew',   carbs:30, kcal:120, sodium:0,    caf:0,   unit:'sachet',  liquid:false },
-  { id:'pf90gel',  name:'PF 90 Gel',          cat:'Gel',     type:'gel',    carbs:90, kcal:360, sodium:0,    caf:0,   unit:'gel',     liquid:false },
-  { id:'pf60drink',name:'PF 60 Drink Mix',    cat:'Boisson', type:'drink',  carbs:60, kcal:240, sodium:1000, caf:0,   unit:'L',       liquid:true },
-  { id:'pf30drink',name:'PF 30 Drink Mix',    cat:'Boisson', type:'drink',  carbs:30, kcal:120, sodium:250,  caf:0,   unit:'L',       liquid:true },
-  { id:'ph1000',   name:'PH 1000 Tablet',     cat:'Électro', type:'electro',carbs:1,  kcal:16,  sodium:500,  caf:0,   unit:'tab/500ml',liquid:true },
-  { id:'ph1500',   name:'PH 1500 Tablet',     cat:'Électro', type:'electro',carbs:2,  kcal:16,  sodium:750,  caf:0,   unit:'tab/500ml',liquid:true },
+  { id:'pf90gel',  name:'PF 90 Gel',          cat:'Gel',     type:'gel',    carbs:90, kcal:360, sodium:0,    caf:0,   unit:'gel',     liquid:false, splittable:3 },
+  { id:'pf60drink',name:'PF 60 Drink Mix',    cat:'Boisson', type:'drink',  carbs:60, kcal:240, sodium:1000, caf:0,   unit:'flasque', liquid:true,  flaskCarbs:30 },
+  { id:'pf30drink',name:'PF 30 Drink Mix',    cat:'Boisson', type:'drink',  carbs:30, kcal:120, sodium:250,  caf:0,   unit:'flasque', liquid:true,  flaskCarbs:15 },
+  { id:'ph1000',   name:'PH 1000 Électrolytes',cat:'Électro',type:'electro',carbs:1,  kcal:16,  sodium:500,  caf:0,   unit:'flasque', liquid:true },
+  { id:'ph1500',   name:'PH 1500 Électrolytes',cat:'Électro',type:'electro',carbs:2,  kcal:16,  sodium:750,  caf:0,   unit:'flasque', liquid:true },
   { id:'ph1000cap',name:'PH 1000 Capsules',   cat:'Électro', type:'electro',carbs:0,  kcal:0,   sodium:500,  caf:0,   unit:'gélule', liquid:false },
 ];
-let selectedProducts = ['pf30gel','pf30chew','pf60drink','ph1000']; // sélection par défaut raisonnable
+let selectedProducts = ['pf30chew','pf90gel','pf60drink','ph1000']; // défaut
 
 function renderProductGrid() {
   const grid = document.getElementById('productGrid');
@@ -450,8 +446,9 @@ function parseTps(str) {
 }
 
 function fmtTime(mins) {
-  const h = Math.floor(mins / 60);
-  const m = Math.round(mins % 60);
+  const total = Math.round(mins);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
   return h + 'h' + String(m).padStart(2, '0');
 }
 
@@ -603,32 +600,44 @@ function classifySlope(s) {
 }
 
 function slopeCoeff(s) {
-  // Coefficient vitesse relatif selon pente (1 = allure normale plat)
-  if (s > 25) return 0.28;
-  if (s > 20) return 0.35;
-  if (s > 15) return 0.45;
-  if (s > 10) return 0.58;
-  if (s > 5) return 0.75;
-  if (s > 2) return 0.90;
-  if (s > -5) return 1.0;
-  if (s > -10) return 1.05;
-  if (s > -15) return 0.92;
-  if (s > -20) return 0.80;
-  return 0.70; // descente très raide = protection genoux
+  // Coefficient de vitesse relatif selon la pente (1 = allure PLAT, l'optimum).
+  // CALIBRÉ sur données réelles Saint-Jacques 100K (fichier athlète Laurent, 11h/81km) :
+  //   Le plat est le plus rapide. En descente l'athlète NE gagne PAS de vitesse
+  //   (terrain technique/cassant) : coeff < 1. En montée, ralentissement marqué,
+  //   passage en marche au-delà de ~8%.
+  //   Mesuré (normalisé /plat) : desc.raide 0.83 | desc 0.87 | desc.douce 0.84
+  //   plat 1.00 | mont.douce 0.75 | montée 0.69 | mont.raide 0.60
+  // s = pente en % (1% = 10 m/km)
+  // Montées
+  if (s > 15) return 0.50;   // mur, marche lente
+  if (s > 12) return 0.55;
+  if (s > 9)  return 0.60;   // mont. raide -> rando
+  if (s > 6)  return 0.66;
+  if (s > 4)  return 0.69;   // montée
+  if (s > 2.5) return 0.74;
+  if (s > 1.5) return 0.78;  // montée douce
+  if (s > 1)  return 0.88;
+  // Plat (optimum de vitesse)
+  if (s > -1) return 1.00;
+  // Descentes (l'athlète ne gagne pas de vitesse — terrain technique)
+  if (s > -1.5) return 0.94;
+  if (s > -4)  return 0.87;  // descente douce
+  if (s > -8)  return 0.88;  // descente
+  if (s > -12) return 0.85;
+  if (s > -15) return 0.83;  // descente raide -> frein genoux
+  return 0.78;               // très raide -> protection genoux
 }
 
 function fatigueCoeff(ratio, niveau) {
-  // ratio = position / distance totale (0-1)
-  // Déclin progressif selon niveau
-  const thresholds = {
-    debutant: { t1: 0.4, t2: 0.65, d1: 0.05, d2: 0.15, d3: 0.30 },
-    confirme: { t1: 0.5, t2: 0.70, d1: 0.03, d2: 0.10, d3: 0.22 },
-    ultra:     { t1: 0.50, t2: 0.65, d1: 0.02, d2: 0.12, d3: 0.28 }
-  };
-  const t = thresholds[niveau] || thresholds.confirme;
-  if (ratio < t.t1) return 1 - ratio * t.d1;
-  if (ratio < t.t2) return (1 - t.t1 * t.d1) - (ratio - t.t1) * t.d2 / (t.t2 - t.t1);
-  return Math.max(0.55, (1 - t.t1 * t.d1) - t.d2 - (ratio - t.t2) * t.d3 / (1 - t.t2));
+  // ratio = position / distance totale (0-1).
+  // Déclin progressif calibré sur données réelles trail (athlète confirmé) :
+  // dégradation douce et quasi-linéaire, accentuée en fin de course.
+  // declTotal = ralentissement total cumulé en fin de course.
+  const declTotal = { debutant: 0.22, confirme: 0.10, ultra: 0.08 }[niveau] || 0.12;
+  // Courbe : plate au début, puis accélération du déclin (exposant 1.4)
+  // fc(0)=1 ; fc(1)=1-declTotal
+  const fc = 1 - declTotal * Math.pow(ratio, 1.4);
+  return Math.max(0.55, fc);
 }
 
 function computeCourse(tpsTotal, niveau) {
@@ -681,222 +690,188 @@ function buildNutritionPlan(course, cfg) {
   const { totalDist, totalMins, points } = course;
   const isUltra = totalDist > 50000 || totalMins > 360;
   const carbsH = cfg.carbsH || 60;
-  const kcalH = cfg.kcalH;
-  const totalCarbs = (totalMins / 60) * carbsH;
-  const totalKcal = (totalMins / 60) * kcalH;
+  const totalHours = totalMins / 60;
+  const totalCarbs = totalHours * carbsH;
 
-  // Hydratation : plus en chaud
+  // Hydratation : règle d'or = boire toutes les 10 min. Volume modulé météo.
   const hydratFactor = cfg.meteo === 'chaud' ? 1.4 : cfg.meteo === 'froid' ? 0.8 : 1.0;
-  const mlPerHour = 500 * hydratFactor;
+  const mlPerHour = Math.round(500 * hydratFactor);
 
-  // Produits sélectionnés, triés par type
+  // Produits sélectionnés
   const sel = (cfg.produits || []).map(getProduct).filter(Boolean);
-  const gels  = sel.filter(p => p.type === 'gel' || p.type === 'chew');
-  const drinks = sel.filter(p => p.type === 'drink');
-  const electros = sel.filter(p => p.type === 'electro');
+  const gels    = sel.filter(p => (p.type === 'gel' || p.type === 'chew') && !p.splittable);
+  const bigGels = sel.filter(p => p.splittable);          // ex: PF 90 -> 3×30g
+  const drinks  = sel.filter(p => p.type === 'drink');
+  const electros= sel.filter(p => p.type === 'electro');
   const caffGel = sel.find(p => p.caf > 0);
+  const drink   = drinks[0] || null;
+  const electro = electros[0] || null;
 
-  function pickDrink() { return drinks[0] || null; }
-  function pickElectro() { return electros[0] || null; }
-
-  function fmtProd(pick) {
-    if (!pick) return null;
-    return `${pick.n}× ${pick.p.name}`;
-  }
-  function prodCarbs(pick) { return pick ? pick.n * pick.p.carbs : 0; }
-
-  // Générer des événements nutritionnels
-  const events = [];
-
-  // ----- ESPACEMENT DES APPORTS PILOTÉ PAR LE BUDGET GLUCIDIQUE -----
-  // On vise carbsH g/h. La plus petite "unité" glucidique disponible définit
-  // la granularité. Ex : gel 30g + cible 75 g/h => 1 unité toutes les
-  // (30 / 75) * 60 = 24 min. On borne entre 15 et 45 min pour rester réaliste.
-  const baseUnitCarbs = gels.length ? Math.min(...gels.map(g => g.carbs))
-                       : (drinks.length ? 30 : 25); // défaut générique
-  let fuelInterval = Math.round((baseUnitCarbs / carbsH) * 60);
-  fuelInterval = Math.max(15, Math.min(45, fuelInterval));
-  // Aligner sur l'intervalle d'hydratation si proche (confort de lecture)
-  const intervalMins = fuelInterval;
-
-  let nextEvent = 15; // premier apport à ~15 min
-  let eventIdx = 0;
-
-  function pointAtTime(targetMins) {
+  // km approximatif à un temps donné (basé sur le modèle pente+fatigue)
+  function kmAtTime(targetMins) {
     let best = points[0];
     for (const p of points) {
       if (Math.abs(p.timeMins - targetMins) < Math.abs(best.timeMins - targetMins)) best = p;
     }
     return best;
   }
+  function slopeAt(p) { return p ? p.slope : 0; }
 
-  // Budget glucidique total à répartir sur la course
-  const carbBudget = (totalMins / 60) * carbsH;
-  // Nombre d'apports prévus pendant la course
-  const nbEvents = Math.max(1, Math.floor((totalMins - 15) / intervalMins) + 1);
-  // Glucides cible par apport (réparti uniformément, hors début progressif)
-  const carbsPerEvent = carbBudget / nbEvents;
+  // ----- ÉTAT DE FRACTIONNEMENT DU GROS GEL (90g -> 3×30g) -----
+  // On entame un gel 90 et on le consomme sur 3 heures successives.
+  let bigGelRemaining = 0;          // portions de 30g restantes du gel 90 entamé
+  const bigGel = bigGels[0] || null;
 
-  // Choisit 1 produit (unité entière) le plus proche de la cible/apport,
-  // SANS jamais dépasser de plus d'1/2 unité (pour ne pas exploser le total)
-  function pickForTarget(targetCarbs, preferCaffeine) {
-    const pool = (preferCaffeine && caffGel) ? [caffGel] : gels;
-    if (!pool.length) return null;
-    // On vise 1 unité par apport en priorité (le total est déjà calibré par nbEvents)
-    let best = pool[0], bestErr = Infinity;
-    pool.forEach(p => {
-      const err = Math.abs(p.carbs - targetCarbs);
-      if (err < bestErr) { bestErr = err; best = p; }
-    });
-    // n = combien d'unités de CE produit pour approcher la cible (souvent 1)
-    let n = Math.max(1, Math.round(targetCarbs / best.carbs));
-    return { p: best, n };
+  // Sélectionne ~30g de glucides "solides" pour une heure donnée.
+  function pickSolid30(preferCaffeine) {
+    if (bigGelRemaining > 0 && bigGel) {
+      bigGelRemaining--;
+      addInv(bigGel.name, 1/bigGel.splittable);
+      return { label: `1/${bigGel.splittable} de ${bigGel.name} (30g)`, carbs: bigGel.carbs/bigGel.splittable };
+    }
+    if (preferCaffeine && caffGel) {
+      addInv(caffGel.name, 1);
+      return { label:`1× ${caffGel.name} (${caffGel.carbs}g)`, carbs:caffGel.carbs };
+    }
+    if (bigGel) {
+      bigGelRemaining = bigGel.splittable - 1;
+      addInv(bigGel.name, 1/bigGel.splittable);
+      return { label:`1/${bigGel.splittable} de ${bigGel.name} (30g)`, carbs:bigGel.carbs/bigGel.splittable };
+    }
+    if (gels.length) {
+      const g = gels[0];
+      const n = Math.max(1, Math.round(30 / g.carbs));
+      addInv(g.name, n);
+      return { label:`${n}× ${g.name} (${g.carbs*n}g)`, carbs:g.carbs*n };
+    }
+    return null;
   }
 
-  // Avant départ
-  const preElectro = pickElectro();
+  const events = [];
+  // Compteurs d'inventaire alimentés pendant la génération
+  const inv = {};
+  function addInv(name, qty) { inv[name] = (inv[name]||0) + qty; }
+
+  // ----- PRÉ-DÉPART -----
   events.push({
-    type: 'prerace',
-    timeMins: -30,
-    km: 0,
-    label: 'Pré-départ (-30 min)',
-    action: 'Repas riche en glucides, bien hydraté',
-    detail: `60-80 g glucides complexes · 500 ml eau${preElectro ? ' + 1× ' + preElectro.name : ''} · Café si habitude`,
-    priority: 'prio',
-    carbs: 0, eau_ml: 500
+    type:'prerace', hour:0, timeMins:-30, km:0,
+    label:'Pré-départ (-30 min)',
+    action:'Repas riche en glucides, bien hydraté',
+    items:'60-80 g glucides complexes · 500 ml eau' + (electro? ` + 1/2 flasque ${electro.name}`:'') + ' · Café si habitude',
+    carbs:0, eau_ml:500, priority:'prio', warnRefill:false
   });
 
-  let elapsedSinceElectro = 0;
+  // ----- 1 LIGNE PAR HEURE D'EFFORT -----
+  const nbHours = Math.max(1, Math.round(totalHours));
+  let flaskIsoLeft = 1.0;   // suivi flasque ISO (1 = pleine)
+  let flaskEleLeft = 1.0;   // suivi flasque électrolytes
 
-  // Pendant la course
-  while (nextEvent <= totalMins) {
-    const p = pointAtTime(nextEvent);
-    const ratio = nextEvent / totalMins;
+  for (let h = 1; h <= nbHours; h++) {
+    const tMin = h * 60;
+    const p = kmAtTime(Math.min(tMin, totalMins));
+    const km = p ? p.dist/1000 : (totalDist/1000 * h/nbHours);
+    const ratio = tMin / totalMins;
     const isLastThird = ratio > 0.66;
     const isLastFifth = ratio > 0.80;
-    const isStart = nextEvent <= 30;
+    const slope = slopeAt(p);
 
-    let action, detail, carbs, eau_ml, priority;
-    elapsedSinceElectro += intervalMins;
+    // Composer l'apport visant carbsH g pour cette heure
+    const parts = [];
+    let carbsSum = 0;
+    let warnRefill = false;
 
-    // Cible glucidique de cet apport (début = progressif à 60%)
-    const targetC = isStart ? carbsPerEvent * 0.6 : carbsPerEvent;
-
-    // Électrolyte toutes les ~45-60 min (45 si chaud)
-    const electroEvery = cfg.meteo === 'chaud' ? 45 : 60;
-    let addElectro = '';
-    const elec = pickElectro();
-    if (elec && elapsedSinceElectro >= electroEvery) {
-      addElectro = ` + 1× ${elec.name}`;
-      elapsedSinceElectro = 0;
+    // Part 1 : solide / gel fractionné (sauf tout dernier 20% = liquide only)
+    if (!isLastFifth) {
+      const solid = pickSolid30(isLastThird);
+      if (solid) { parts.push(solid.label); carbsSum += solid.carbs; }
     }
 
-    if (isStart) {
-      const drink = pickDrink();
-      const solid = pickForTarget(targetC);
-      action = 'Hydratation + démarrage glucides';
-      detail = (drink ? `Boisson ${drink.name} (gorgées régulières)` : 'Gorgées régulières')
-             + (solid ? ` + ${fmtProd(solid)}` : '') + addElectro;
-      carbs = solid ? prodCarbs(solid) : Math.round(targetC);
-      eau_ml = Math.round(mlPerHour / 60 * intervalMins);
-      priority = 'prio';
-    } else if (isLastFifth) {
-      const drink = pickDrink();
-      const solid = pickForTarget(targetC);
-      action = 'Format LIQUIDE uniquement — fenêtre digestive réduite';
-      detail = (drink ? `${drink.name} privilégié` : (solid ? fmtProd(solid) + ' (dilué/avec eau)' : 'Boisson glucidique'))
-             + (isUltra ? ' · bouillon salé si nausée' : '') + addElectro;
-      carbs = solid ? prodCarbs(solid) : Math.round(targetC);
-      eau_ml = Math.round(mlPerHour / 60 * intervalMins * 1.1);
-      priority = 'alert';
-    } else if (isLastThird) {
-      const solid = pickForTarget(targetC, true);
-      action = 'Gel + eau · surveiller nausées';
-      detail = (solid ? fmtProd(solid) : 'Gel glucidique') + addElectro
-             + (solid && solid.p.caf ? ' (caféine : coup de fouet)' : '');
-      carbs = solid ? prodCarbs(solid) : Math.round(targetC);
-      eau_ml = Math.round(mlPerHour / 60 * intervalMins);
-      priority = 'warn';
-    } else if (p && (classifySlope(p.slope) === 'dn-s' || classifySlope(p.slope) === 'flat')) {
-      const solid = pickForTarget(targetC);
-      action = 'Fenêtre digestive ✓ — Apport solide';
-      detail = (solid ? fmtProd(solid) : 'Chews / gel') + addElectro;
-      carbs = solid ? prodCarbs(solid) : Math.round(targetC);
-      eau_ml = Math.round(mlPerHour / 60 * intervalMins);
-      priority = 'prio';
+    // Part 2 : compléter avec boisson ISO pour approcher carbsH SANS dépasser.
+    if (drink) {
+      const half = drink.flaskCarbs || Math.round(drink.carbs/2);
+      const deficit = Math.max(0, carbsH - carbsSum);
+      let needed = Math.floor(deficit / half);   // ne jamais dépasser la cible
+      // si on est encore loin (>=80% d'une portion manquante) et qu'on ne dépasserait
+      // que légèrement, on autorise une portion de plus
+      if (deficit - needed*half >= half*0.8) needed += 1;
+      needed = Math.max(0, Math.min(4, needed));
+      if (needed >= 1) {
+        const label = needed === 1 ? `1/2 flasque ${drink.name} (${half}g)`
+                    : needed === 2 ? `1 flasque ${drink.name} (${half*2}g)`
+                    : `${(needed/2).toFixed(1)} flasque ${drink.name} (${half*needed}g)`;
+        parts.push(label);
+        carbsSum += needed * half;
+        addInv(drink.name + ' (dose 1/2 flasque)', needed);
+        flaskIsoLeft -= needed * 0.5;
+        if (flaskIsoLeft < 0.5) { warnRefill = true; flaskIsoLeft += 1.0; }
+      }
     } else {
-      const solid = pickForTarget(targetC);
-      action = 'Gel ou boisson + eau';
-      detail = (solid ? fmtProd(solid) : 'Gel glucides rapides') + addElectro;
-      carbs = solid ? prodCarbs(solid) : Math.round(targetC);
-      eau_ml = Math.round(mlPerHour / 60 * intervalMins);
-      priority = 'normal';
+      let guard = 0;
+      while (carbsSum + (gels[0]?.carbs||999)*0.5 < carbsH && gels.length && guard < 4) {
+        const g = gels[0];
+        parts.push(`1× ${g.name} (${g.carbs}g)`); carbsSum += g.carbs; addInv(g.name,1); guard++;
+      }
     }
+
+    // Part 3 : électrolytes — 1 flasque dure ~2h, rappel quand vide
+    if (electro) {
+      parts.push(`électrolytes (${electro.name})`);
+      addInv(electro.name + ' (dose 1/2 flasque)', 1);
+      flaskEleLeft -= 0.5;
+      if (flaskEleLeft < 0.5) { warnRefill = true; flaskEleLeft += 1.0; }
+    }
+
+    // Priorité / fenêtre digestive selon le moment & la pente
+    let priority = 'normal';
+    let note = '';
+    if (h === 1) { priority = 'prio'; note = 'Démarrage progressif'; }
+    else if (isLastFifth) { priority = 'alert'; note = 'Liquide uniquement — fenêtre digestive réduite' + (isUltra?' · bouillon salé si nausée':''); }
+    else if (isLastThird) { priority = 'warn'; note = 'Surveiller nausées' + (caffGel?' · caféine = coup de fouet':''); }
+    else if (slope < -3) { priority = 'prio'; note = 'Descente : fenêtre digestive idéale'; }
+    else if (slope > 8)  { priority = 'normal'; note = 'Montée : privilégier liquide'; }
 
     events.push({
-      timeMins: nextEvent,
-      km: p ? p.dist / 1000 : 0,
-      slope: p ? p.slope : 0,
-      label: fmtTime(nextEvent) + (p ? ` — km ${(p.dist/1000).toFixed(1)}` : ''),
-      action,
-      detail,
-      carbs,
-      eau_ml: Math.round(eau_ml),
+      type:'hour', hour:h, timeMins:tMin, km,
+      label:`${h}h (env. km ${km.toFixed(0)})`,
+      action: note,
+      items: parts.join(' + '),
+      carbs: Math.round(carbsSum),
+      eau_ml: mlPerHour,
       priority,
-      ratio
+      warnRefill,
+      slope
     });
-
-    nextEvent += intervalMins;
-    eventIdx++;
-    if (eventIdx > 300) break;
   }
 
-  // Après course
-  const postElectro = pickElectro();
+  // ----- POST-ARRIVÉE -----
   events.push({
-    type: 'postrace',
-    timeMins: totalMins + 30,
-    km: totalDist / 1000,
-    label: 'Post-arrivée (+30 min)',
-    action: 'Récupération CRITIQUE — Fenêtre anabolique 30 min',
-    detail: `25-30g protéines · 60-80g glucides rapides · 500 ml eau${postElectro ? ' + 1× ' + postElectro.name : ' + électrolytes'}`,
-    priority: 'prio',
-    carbs: 70,
-    eau_ml: 500
+    type:'postrace', hour:nbHours+1, timeMins:totalMins+30, km: totalDist/1000,
+    label:'Post-arrivée (+30 min)',
+    action:'Récupération — fenêtre anabolique 30 min',
+    items:`25-30 g protéines · 60-80 g glucides rapides · 500 ml eau` + (electro? ` + 1/2 flasque ${electro.name}`:' + électrolytes'),
+    carbs:70, eau_ml:500, priority:'prio', warnRefill:false
   });
 
-  // Inventaire produits (totaux à emporter)
+  // ----- INVENTAIRE PRODUITS (compté pendant la génération) -----
   const inventory = {};
-  events.forEach(e => {
-    if (e.timeMins < 0 || e.timeMins > totalMins) return;
-    (e.detail.match(/(\d+)× ([A-Za-z0-9 ]+)/g) || []).forEach(m => {
-      const mm = m.match(/(\d+)× (.+)/);
-      if (mm) {
-        const n = parseInt(mm[1]); const name = mm[2].trim();
-        inventory[name] = (inventory[name] || 0) + n;
-      }
-    });
-  });
+  Object.keys(inv).forEach(k => { inventory[k] = Math.ceil(inv[k]); });
 
-  // Totaux
-  const raceEv = events.filter(e => e.timeMins >= 0 && e.timeMins <= totalMins);
-  const totalCarbsPlan = raceEv.reduce((s, e) => s + (e.carbs || 0), 0);
-  const totalEau = raceEv.reduce((s, e) => s + (e.eau_ml || 0), 0);
-  const avgCarbsH = totalMins > 0 ? Math.round(totalCarbsPlan / (totalMins / 60)) : 0;
+  // ----- TOTAUX -----
+  const raceEv = events.filter(e => e.type === 'hour');
+  const totalCarbsPlan = raceEv.reduce((s,e)=>s+(e.carbs||0),0);
+  const totalEau = raceEv.reduce((s,e)=>s+(e.eau_ml||0),0);
+  const avgCarbsH = totalHours>0 ? Math.round(totalCarbsPlan/totalHours) : 0;
 
   return {
-    events,
-    inventory,
-    selectedProductObjs: sel,
+    events, inventory, selectedProductObjs: sel,
     carbsH,
     totalCarbs: Math.round(totalCarbs),
     totalCarbsPlan: Math.round(totalCarbsPlan),
     avgCarbsH,
-    totalEau: Math.round(totalEau / 1000 * 10) / 10,
+    totalEau: Math.round(totalEau/1000*10)/10,
+    nbHours,
     isUltra,
-    gluPct: cfg.gluPct,
-    protPct: cfg.protPct,
-    lipPct: 100 - cfg.gluPct - cfg.protPct
+    gluPct: cfg.gluPct, protPct: cfg.protPct, lipPct: 100-cfg.gluPct-cfg.protPct
   };
 }
 
@@ -937,7 +912,7 @@ function renderProfil() {
     <div class="profile-grid">
       <div class="profile-item"><div class="pi-val">${cfg.poids} kg</div><div class="pi-lbl">Poids</div></div>
       <div class="profile-item"><div class="pi-val">${cfg.carbsH} g/h</div><div class="pi-lbl">Glucides cible (${cfg.carbsAuto ? 'auto' : 'manuel'})</div></div>
-      <div class="profile-item"><div class="pi-val">${cfg.hydratMins} min</div><div class="pi-lbl">Intervalle hydrat.</div></div>
+      <div class="profile-item"><div class="pi-val">10/30 min</div><div class="pi-lbl">Boire / Manger</div></div>
       <div class="profile-item"><div class="pi-val">${cfg.digest}</div><div class="pi-lbl">Tolérance digest.</div></div>
       <div class="profile-item"><div class="pi-val">${cfg.niveau}</div><div class="pi-lbl">Niveau</div></div>
       <div class="profile-item"><div class="pi-val">${cfg.meteo}</div><div class="pi-lbl">Météo</div></div>
@@ -1266,19 +1241,23 @@ function renderNutrition() {
 
     return `<div class="nutr-event ${cls}">
       <div class="ne-header">
-        <span class="ne-time">${isPrePost ? e.label.split('(')[0].trim() : fmtTime(e.timeMins)}</span>
-        ${!isPrePost ? `<span class="ne-km">km ${e.km.toFixed(1)}</span>` : ''}
+        <span class="ne-time">${isPrePost ? e.label.split('(')[0].trim() : e.hour + 'h'}</span>
+        ${!isPrePost ? `<span class="ne-km">env. km ${e.km.toFixed(0)}</span>` : ''}
         ${e.priority === 'prio' ? '<span class="nutr-badge nb-g">✓ Prioritaire</span>' :
           e.priority === 'warn' ? '<span class="nutr-badge nb-y">⚡ Vigilance</span>' :
           e.priority === 'alert' ? '<span class="nutr-badge nb-r">🔴 Critique</span>' :
           '<span class="nutr-badge" style="background:var(--surf2);color:var(--mut);border:1px solid var(--bdr)">Standard</span>'}
+        ${e.warnRefill ? '<span class="nutr-badge nb-y">⚠️ Recharger flasques</span>' : ''}
       </div>
-      <div class="ne-body">${e.action}</div>
-      <div class="ne-detail">${e.detail}${e.carbs ? ` · <b style="color:var(--acc)">${e.carbs} g glucides</b>` : ''}${e.eau_ml ? ` · 💧 ${e.eau_ml} ml` : ''}</div>
+      <div class="ne-body" style="font-weight:600">${e.items}${e.carbs ? ` <span style="color:var(--acc)">[${e.carbs}g]</span>` : ''}</div>
+      ${e.action ? `<div class="ne-detail">${e.action}${e.eau_ml ? ` · 💧 boire ${e.eau_ml} ml/h` : ''}</div>` : (e.eau_ml ? `<div class="ne-detail">💧 boire ${e.eau_ml} ml/h</div>` : '')}
     </div>`;
   }).join('');
 
   let alertsHtml = '';
+  // Règles d'or toujours rappelées
+  alertsHtml += `<div class="alert-box info"><div class="ab-title">⏱️ Règles d'or</div>
+    <div class="ab-body"><b>Boire toutes les 10 min</b> (petites gorgées) · <b>Manger toutes les 30 min</b>. Le plan ci-dessous résume les apports heure par heure.</div></div>`;
   if (config.meteo === 'chaud') {
     alertsHtml += `<div class="alert-box warn"><div class="ab-title">☀️ Météo chaude — Vigilance hyponatrémie</div>
     <div class="ab-body">Ne pas boire que de l'eau. Ajouter systématiquement électrolytes/sel après 1h. Objectif minimum : 600 ml/h.</div></div>`;
@@ -1291,13 +1270,13 @@ function renderNutrition() {
   }
 
   let html = `
-  <div class="section-title">Protocole Nutritionnel</div>
+  <div class="section-title">Protocole Nutritionnel (horaire)</div>
 
   <div class="stat-row">
     <div class="stat"><div class="stat-val">${Math.round(totalCarbsRace)}g</div><div class="stat-lbl">Glucides total</div></div>
     <div class="stat"><div class="stat-val">${plan.avgCarbsH}</div><div class="stat-lbl">g/h moyen</div></div>
     <div class="stat"><div class="stat-val">${plan.totalEau}L</div><div class="stat-lbl">Eau prévue</div></div>
-    <div class="stat"><div class="stat-val">${events.filter(e => e.timeMins >= 0 && e.timeMins <= courseData.totalMins).length}</div><div class="stat-lbl">Ravitos</div></div>
+    <div class="stat"><div class="stat-val">${plan.nbHours}</div><div class="stat-lbl">Heures</div></div>
   </div>
 
   ${alertsHtml}
@@ -1306,18 +1285,15 @@ function renderNutrition() {
     <div class="card-title">📦 Inventaire à emporter</div>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Produit</th><th>Quantité</th><th>Glucides</th><th>Sodium</th></tr></thead>
+        <thead><tr><th>Produit</th><th>Quantité</th></tr></thead>
         <tbody>
         ${Object.entries(plan.inventory).map(([name, qty]) => {
-          const prod = PRODUCTS.find(p => p.name === name);
-          const carbs = prod ? prod.carbs * qty : 0;
-          const na = prod ? prod.sodium * qty : 0;
-          return `<tr><td><b>${name}</b></td><td>${qty}× ${prod ? prod.unit : ''}</td><td>${carbs}g</td><td>${na ? na + 'mg' : '—'}</td></tr>`;
+          return `<tr><td><b>${name}</b></td><td>${qty}</td></tr>`;
         }).join('')}
         </tbody>
       </table>
     </div>
-    <div style="font-size:11px;color:var(--mut);margin-top:8px">Quantités estimées sur la base du plan. Prévois une marge de sécurité (+1-2 gels).</div>
+    <div style="font-size:11px;color:var(--mut);margin-top:8px">Quantités estimées. Prévois une marge de sécurité (+1 gel, +1 dose).</div>
   </div>` : ''}
 
   <div class="card">
@@ -1332,7 +1308,7 @@ function renderNutrition() {
   </div>
 
   <div class="card">
-    <div class="card-title">Timeline nutritionnelle</div>
+    <div class="card-title">Plan heure par heure</div>
     <div class="nutr-timeline">${eventsHtml}</div>
   </div>
 
@@ -1379,7 +1355,7 @@ function renderExport() {
     <div class="export-card">
       <div class="export-icon">🏃</div>
       <div class="export-title">Fiche mémo course</div>
-      <div class="export-desc">Format compact 2×A5 · Texte grand · Tableau synthétique · Code couleur · Utilisable pendant la course ou sur dossard</div>
+      <div class="export-desc">Format A4 → 2 volets A5 à plier · <b>Fond blanc (économe en encre)</b> · Volet 1 : nutrition heure par heure · Volet 2 : profil altimétrique vertical avec ravitos</div>
       <button class="btn btn-primary" onclick="exportPDFMemo()">⬇️ Télécharger (A5×2)</button>
     </div>
   </div>
@@ -1504,7 +1480,7 @@ function exportPDFComplet() {
   const profItems = [
     [`Poids`, `${config.poids} kg`],
     [`Glucides`, `${config.carbsH} g/h`],
-    [`Hydratation`, `/${config.hydratMins} min`],
+    [`Boire/Manger`, `10 / 30 min`],
     [`Digest.`, config.digest],
     [`Niveau`, config.niveau],
     [`Météo`, config.meteo],
@@ -1803,126 +1779,201 @@ function exportPDFMemo() {
   const nomCourse = (document.getElementById('fNomCourse').value || 'Trail').toUpperCase();
   const c = courseData;
   const plan = planData;
-  // Landscape A4 = 297 x 210mm. Split en 2 fiches A5 (148.5 x 210)
+  // A4 paysage = 297 x 210 mm, scindé en 2 volets A5 (148.5 x 210)
   const FW = 148.5, FH = 210;
-  const DARK = [13,13,15], SURF = [20,20,22], ACC = [232,255,71];
-  const TXT = [240,240,240], MUT = [107,107,120];
-  const GRN = [74,222,128], WARN_C = [255,149,0], RED = [248,113,113];
 
-  function drawFiche(offsetX) {
-    // Background
-    doc.setFillColor(...DARK);
+  // ===== PALETTE IMPRESSION : FOND BLANC, TEXTE SOMBRE (économie d'encre) =====
+  const WHITE = [255,255,255], INK = [25,25,30], INK2 = [90,90,100];
+  const LINE = [200,200,205], BAND = [238,238,240];
+  // Couleurs d'accent (sobres, pour signaux uniquement)
+  const GRN = [22,140,75], WARN_C = [200,120,0], RED = [200,40,40], BLUE = [40,90,160];
+
+  // ---------- VOLET 1 : PLAN NUTRITION HORAIRE ----------
+  function drawNutritionPanel(offsetX) {
+    // Fond blanc
+    doc.setFillColor(...WHITE);
     doc.rect(offsetX, 0, FW, FH, 'F');
-    // Header
-    doc.setFillColor(...SURF);
-    doc.rect(offsetX, 0, FW, 14, 'F');
-    doc.setDrawColor(...ACC);
-    doc.setLineWidth(0.5);
-    doc.line(offsetX, 14, offsetX+FW, 14);
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(11);
-    doc.setTextColor(...ACC);
-    doc.text('FICHE MÉMO COURSE', offsetX+4, 10);
-    doc.setFontSize(8);
-    doc.setTextColor(...MUT);
-    doc.text(nomCourse, offsetX+FW-4, 10, {align:'right'});
 
-    let y = 18;
-    // Stats compact
-    const si = [(c.totalDist/1000).toFixed(1)+'km','+'+c.dpPos+'m',fmtTime(c.totalMins)];
-    const sl = ['Distance','D+','Temps'];
-    const sw = 30;
-    si.forEach((s,i) => {
-      doc.setFillColor(...SURF);
-      doc.rect(offsetX+4+i*32, y, sw, 10, 'F');
-      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...ACC);
-      doc.text(s, offsetX+4+i*32+sw/2, y+6, {align:'center'});
-      doc.setFont('helvetica','normal'); doc.setFontSize(6); doc.setTextColor(...MUT);
-      doc.text(sl[i], offsetX+4+i*32+sw/2, y+9.5, {align:'center'});
-    });
+    // En-tête
+    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(...INK);
+    doc.text('PLAN NUTRITION', offsetX+6, 11);
+    doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...INK2);
+    doc.text(nomCourse, offsetX+6, 16);
+    doc.setDrawColor(...INK); doc.setLineWidth(0.6);
+    doc.line(offsetX+6, 18.5, offsetX+FW-6, 18.5);
+
+    let y = 23;
+    // Stats + règles d'or
+    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...INK);
+    doc.text(`${(c.totalDist/1000).toFixed(1)} km · D+ ${c.dpPos}m · ${fmtTime(c.totalMins)} · ${plan.avgCarbsH} g/h (~${plan.totalCarbsPlan}g)`, offsetX+6, y);
+    y += 6;
+    // Encadré règles d'or
+    doc.setDrawColor(...LINE); doc.setLineWidth(0.3);
+    doc.setFillColor(...BAND); doc.rect(offsetX+6, y, FW-12, 9, 'FD');
+    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...INK);
+    doc.text('REGLES D\'OR :  Boire / 10 min   ·   Manger / 30 min', offsetX+FW/2, y+5.8, {align:'center'});
     y += 14;
 
-    // Timeline tableau
-    const raceEvents = plan.events.filter(e => e.timeMins >= 0 && e.timeMins <= c.totalMins);
-    // Colonnes : heure, km, action (courte), kcal, eau, signal
-    const colWM = [18, 12, 72, 16, 14];
-    const colXM = [0]; colWM.forEach((w,i)=>colXM.push(colXM[i]+w));
-    const headsM = ['Heure','km','Action','Gluc.','💧ml'];
-    const rowH = 7.5;
-    const baseX = offsetX + 4;
+    // Tableau horaire
+    const raceEvents = plan.events.filter(e => e.type === 'hour');
+    const colW = [14, 16, FW-12-14-16-16, 16];  // Heure | km | Apport | Gluc
+    const colX = [offsetX+6];
+    colW.forEach((w,i)=>colX.push(colX[i]+w));
+    const heads = ['Heure','Env. km','Apport nutritionnel','Gluc.'];
 
-    // Header
-    headsM.forEach((h,i) => {
-      doc.setFillColor(...SURF);
-      doc.rect(baseX+colXM[i], y, colWM[i]-0.5, rowH-0.5, 'F');
-      doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...MUT);
-      doc.text(h, baseX+colXM[i]+1, y+5);
-    });
-    y += rowH;
+    // En-tête tableau
+    doc.setFillColor(...INK); doc.rect(offsetX+6, y, FW-12, 7, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...WHITE);
+    heads.forEach((h,i)=> doc.text(h, colX[i]+1.5, y+4.8));
+    y += 7;
 
+    const nHours = raceEvents.length;
+    const availH = (FH - 42) - y;            // hauteur dispo avant la zone urgences
+    const rowH = Math.max(8, Math.min(13, availH / nHours));
+    doc.setFontSize(7.5);
     raceEvents.forEach((e, ri) => {
-      if (y > FH - 30) return; // clip
+      if (y > FH - 40) return;
+      // Bande alternée + barre de signal à gauche
+      if (ri % 2 === 1) { doc.setFillColor(...BAND); doc.rect(offsetX+6, y, FW-12, rowH, 'F'); }
+      const sig = e.priority==='prio'?GRN : e.priority==='warn'?WARN_C : e.priority==='alert'?RED : LINE;
+      doc.setFillColor(...sig); doc.rect(offsetX+6, y, 1.4, rowH, 'F');
 
-      const bg = e.priority === 'prio' ? [10,25,15] :
-                 e.priority === 'warn' ? [25,18,5] :
-                 e.priority === 'alert' ? [28,10,10] :
-                 ri%2===0 ? DARK : [16,16,18];
-      const txtC = e.priority === 'prio' ? GRN :
-                   e.priority === 'warn' ? WARN_C :
-                   e.priority === 'alert' ? RED : TXT;
+      // Heure (gros, lisible)
+      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...INK);
+      doc.text(`${e.hour}h`, colX[0]+2.5, y+rowH/2+2);
+      // km
+      doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...INK2);
+      doc.text(`${e.km.toFixed(0)}`, colX[1]+2, y+rowH/2+2);
+      // Note (refill / vigilance) — calculée d'abord pour ajuster la place du texte
+      let noteTxt = e.warnRefill ? 'Recharger flasques' : '';
+      if (e.priority==='alert') noteTxt = (noteTxt?noteTxt+' · ':'') + 'Liquide seul';
+      // Apport : nb de lignes selon la hauteur dispo
+      doc.setFont('helvetica','normal'); doc.setFontSize(rowH < 10 ? 7 : 7.5); doc.setTextColor(...INK);
+      const maxLines = (noteTxt || rowH < 10) ? 1 : 2;
+      const lines = doc.splitTextToSize(e.items || '', colW[2]-3);
+      const yText = noteTxt ? y+4.3 : (maxLines===1 ? y+rowH/2+1.5 : y+5);
+      lines.slice(0,maxLines).forEach((ln,li)=> doc.text(ln, colX[2]+1.5, yText+li*4));
+      if (noteTxt) {
+        doc.setFontSize(6.3); doc.setTextColor(...WARN_C);
+        doc.text('⚠ '+noteTxt, colX[2]+1.5, y+rowH-1.8);
+      }
+      // Glucides
+      doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(...INK);
+      doc.text(`${e.carbs||0}g`, colX[3]+1.5, y+rowH/2+2);
 
-      const row = [fmtTime(e.timeMins), e.km.toFixed(1), e.action.slice(0,45), (e.carbs||0)+'g', (e.eau_ml||0).toString()];
-      row.forEach((v,i) => {
-        doc.setFillColor(...bg);
-        doc.rect(baseX+colXM[i], y, colWM[i]-0.5, rowH-0.5, 'F');
-        doc.setFont('helvetica', i===0&&e.priority!=='normal'?'bold':'normal');
-        doc.setFontSize(i===0?7:6.5);
-        doc.setTextColor(...(i===0?txtC:TXT));
-        doc.text(v, baseX+colXM[i]+1, y+5);
-      });
-      // Signal dot
-      const dotColors = { prio:GRN, warn:WARN_C, alert:RED, normal:MUT };
-      doc.setFillColor(...(dotColors[e.priority]||MUT));
-      doc.circle(offsetX+FW-6, y+rowH/2, 2.5, 'F');
+      // séparateur fin
+      doc.setDrawColor(...LINE); doc.setLineWidth(0.2);
+      doc.line(offsetX+6, y+rowH, offsetX+FW-6, y+rowH);
       y += rowH;
     });
 
-    y += 4;
-    // Légende
-    [[GRN,'Prioritaire'],[WARN_C,'Vigilance'],[RED,'Critique']].forEach(([col,lbl],i) => {
-      doc.setFillColor(...col); doc.circle(offsetX+4+i*36+2, y+2, 2, 'F');
-      doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(...MUT);
-      doc.text(lbl, offsetX+4+i*36+6, y+4);
-    });
-    y += 8;
-
-    // Urgences compact
+    y += 3;
+    // Urgences (bas de volet)
+    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...INK);
+    doc.text('URGENCES', offsetX+6, y); y += 4;
     const urg = [
-      [RED,'HYPO: gel immédiat + marcher'],
-      [WARN_C,'DÉSHYDRAT: eau+sel+ralentir'],
-      [RED,'NAUSÉES: liquide seul'],
+      [RED,'HYPO','gel rapide + marcher 3 min'],
+      [BLUE,'DESHYDRAT','eau + sel, ralentir'],
+      [WARN_C,'NAUSEES','liquide seul, bouillon'],
     ];
-    urg.forEach(([col,txt]) => {
-      doc.setFillColor(...SURF);
-      doc.rect(offsetX+4, y, FW-8, 8, 'F');
-      doc.setFillColor(...col); doc.rect(offsetX+4, y, 2, 8, 'F');
-      doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...TXT);
-      doc.text(txt, offsetX+9, y+5);
-      y += 10;
+    doc.setFontSize(7);
+    urg.forEach(([col,t,a]) => {
+      doc.setFillColor(...col); doc.rect(offsetX+6, y, 2, 5, 'F');
+      doc.setFont('helvetica','bold'); doc.setTextColor(...INK);
+      doc.text(t+':', offsetX+10, y+3.7);
+      doc.setFont('helvetica','normal'); doc.setTextColor(...INK2);
+      doc.text(a, offsetX+30, y+3.7);
+      y += 6.5;
     });
-
-    // Trait de coupe vertical (entre les deux fiches)
-    if (offsetX === 0) {
-      doc.setDrawColor(...MUT);
-      doc.setLineWidth(0.2);
-      doc.setLineDash([3,3]);
-      doc.line(FW, 0, FW, FH);
-      doc.setLineDash([]);
-    }
   }
 
-  drawFiche(0);
-  drawFiche(FW);
+  // ---------- VOLET 2 : PROFIL ALTIMÉTRIQUE VERTICAL ----------
+  function drawProfilePanel(offsetX) {
+    doc.setFillColor(...WHITE);
+    doc.rect(offsetX, 0, FW, FH, 'F');
+
+    // En-tête
+    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(...INK);
+    doc.text('PROFIL DE COURSE', offsetX+6, 11);
+    doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...INK2);
+    doc.text('Lecture verticale — du départ (haut) à l\'arrivée (bas)', offsetX+6, 16);
+    doc.setDrawColor(...INK); doc.setLineWidth(0.6);
+    doc.line(offsetX+6, 18.5, offsetX+FW-6, 18.5);
+
+    // Zone de tracé : profil tourné 90° → l'axe vertical = distance, horizontal = altitude
+    const pts = c.points;
+    const eles = pts.map(p=>p.ele);
+    const eMin = Math.min(...eles), eMax = Math.max(...eles);
+    const distMax = pts[pts.length-1].dist;
+
+    const top = 24, bottom = FH - 12;
+    const plotH = bottom - top;            // axe distance (vertical)
+    const left = offsetX + 28;             // marge gauche pour repères km
+    const plotW = FW - 28 - 10;            // axe altitude (horizontal)
+    const xAlt = a => left + ((a - eMin)/(eMax - eMin || 1)) * plotW;
+    const yDist = d => top + (d/distMax) * plotH;
+
+    // Repères km (tous les 5 km) + lignes horizontales
+    doc.setFontSize(6.5); doc.setFont('helvetica','normal');
+    for (let km=0; km<=distMax/1000; km+=5) {
+      const yy = yDist(km*1000);
+      doc.setDrawColor(...LINE); doc.setLineWidth(0.15);
+      doc.line(left, yy, left+plotW, yy);
+      doc.setTextColor(...INK2);
+      doc.text(`${km}`, left-3, yy+2, {align:'right'});
+    }
+    // Label axe
+    doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...INK2);
+    doc.text('KM', left-3, top-2, {align:'right'});
+    doc.text(`Alt. ${Math.round(eMin)}-${Math.round(eMax)}m`, left+plotW, top-2, {align:'right'});
+
+    // Remplissage du profil (aire) + ligne
+    // Aire : polygone entre l'axe gauche (alt min) et la courbe
+    doc.setFillColor(225,230,235);
+    let prev = null;
+    pts.forEach((p,i) => {
+      const x = xAlt(p.ele), yy = yDist(p.dist);
+      if (prev) {
+        // petit quadrilatère
+        doc.setDrawColor(...INK); doc.setLineWidth(0.4);
+        doc.line(prev.x, prev.y, x, yy);
+      }
+      prev = {x, y:yy};
+    });
+    // Départ / arrivée (labels décalés pour éviter chevauchement)
+    doc.setFillColor(...GRN); doc.circle(xAlt(pts[0].ele), yDist(0), 2, 'F');
+    doc.setFillColor(...RED);  doc.circle(xAlt(pts[pts.length-1].ele), yDist(distMax), 2, 'F');
+
+    // Points de ravito horaires reportés sur le profil (h)
+    doc.setFontSize(6.5);
+    plan.events.filter(e=>e.type==='hour').forEach(e=>{
+      const pAt = pts.reduce((b,p)=> Math.abs(p.dist-e.km*1000)<Math.abs(b.dist-e.km*1000)?p:b, pts[0]);
+      const yy = yDist(pAt.dist), xx = xAlt(pAt.ele);
+      doc.setFillColor(...BLUE); doc.circle(xx, yy, 1.3, 'F');
+      doc.setFont('helvetica','bold'); doc.setTextColor(...BLUE);
+      // label à gauche ou à droite selon la place
+      const lblX = xx > left + plotW*0.6 ? xx - 3 : xx + 3;
+      const align = xx > left + plotW*0.6 ? 'right' : 'left';
+      doc.text(`${e.hour}h`, lblX, yy+0.6, {align});
+    });
+
+    // Labels DÉPART/ARRIVÉE en gras, décalés verticalement
+    doc.setFont('helvetica','bold'); doc.setFontSize(7);
+    doc.setTextColor(...GRN); doc.text('DÉPART', xAlt(pts[0].ele)+4, yDist(0)-2);
+    doc.setTextColor(...RED);  doc.text('ARRIVÉE', xAlt(pts[pts.length-1].ele)+4, yDist(distMax)+3.5);
+
+    // Trait de coupe entre les 2 volets
+    doc.setDrawColor(...INK2); doc.setLineWidth(0.2);
+    doc.setLineDashPattern([2,2], 0);
+    doc.line(FW, 0, FW, FH);
+    doc.setLineDashPattern([], 0);
+    // picto ciseaux
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...INK2);
+    doc.text('✂', FW-2.5, FH/2, {align:'center'});
+  }
+
+  drawNutritionPanel(0);
+  drawProfilePanel(FW);
 
   doc.save(`Plan_Nutrition_${nomCourse.replace(/\s+/g,'_')}_memo.pdf`);
 }
@@ -1962,7 +2013,7 @@ function generer() {
     carbsH,                // objectif glucides g/h (métrique principale)
     carbsAuto,
     kcalH,                 // dérivé (info secondaire)
-    hydratMins: parseInt(document.getElementById('fHydrat').value) || 20,
+    hydratMins: 10,  // règle d'or : boire toutes les 10 min
     gluPct: 80,
     protPct: 10,
     digest: getRadio('rDigest') || 'normale',
