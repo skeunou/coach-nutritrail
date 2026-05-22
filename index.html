@@ -402,18 +402,76 @@ let config = {};
 // (carbs en g, kcal, sodium en mg par unité)
 // type: gel | chew | drink | electro
 // ============================================================
-const PRODUCTS = [
-  { id:'pf30gel',  name:'PF 30 Gel',          cat:'Gel',     type:'gel',    carbs:30, kcal:120, sodium:0,    caf:0,   unit:'gel',     liquid:false },
-  { id:'pf30caf',  name:'PF 30 Caffeine Gel', cat:'Gel',     type:'gel',    carbs:30, kcal:120, sodium:0,    caf:100, unit:'gel',     liquid:false },
-  { id:'pf30chew', name:'PF 30 Chew',         cat:'Chews',   type:'chew',   carbs:30, kcal:120, sodium:0,    caf:0,   unit:'sachet',  liquid:false },
-  { id:'pf90gel',  name:'PF 90 Gel',          cat:'Gel',     type:'gel',    carbs:90, kcal:360, sodium:0,    caf:0,   unit:'gel',     liquid:false, splittable:3 },
-  { id:'pf60drink',name:'PF 60 Drink Mix',    cat:'Boisson', type:'drink',  carbs:60, kcal:240, sodium:1000, caf:0,   unit:'flasque', liquid:true,  flaskCarbs:30 },
-  { id:'pf30drink',name:'PF 30 Drink Mix',    cat:'Boisson', type:'drink',  carbs:30, kcal:120, sodium:250,  caf:0,   unit:'flasque', liquid:true,  flaskCarbs:15 },
-  { id:'ph1000',   name:'PH 1000 Électrolytes',cat:'Électro',type:'electro',carbs:1,  kcal:16,  sodium:500,  caf:0,   unit:'flasque', liquid:true },
-  { id:'ph1500',   name:'PH 1500 Électrolytes',cat:'Électro',type:'electro',carbs:2,  kcal:16,  sodium:750,  caf:0,   unit:'flasque', liquid:true },
-  { id:'ph1000cap',name:'PH 1000 Capsules',   cat:'Électro', type:'electro',carbs:0,  kcal:0,   sodium:500,  caf:0,   unit:'gélule', liquid:false },
+const CATALOG = [
+  {id:"preci_pf_30_gel",brand:"Precision Fuel",name:"PF 30 Gel",type:"gel",carbs:30,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"preci_pf_90_gel",brand:"Precision Fuel",name:"PF 90 Gel",type:"gel",carbs:90,sodium:0,caffeine:0,volume:0,fractions:[1,0.667,0.333],moment:["pendant"]},
+  {id:"preci_pf_30_chew",brand:"Precision Fuel",name:"PF 30 Chew",type:"chew",carbs:30,sodium:0,caffeine:0,volume:0,fractions:[1,0.667,0.333],moment:["avant","pendant"]},
+  {id:"preci_hydration_packets_pf_1500",brand:"Precision Fuel",name:"Hydration Packets (PF 1500)",type:"electro",carbs:0,sodium:750,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["avant","pendant"]},
+  {id:"preci_hydration_packets_pf_500",brand:"Precision Fuel",name:"Hydration Packets (PF 500)",type:"electro",carbs:0,sodium:250,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["pendant"]},
+  {id:"preci_pf_90_drink_mix",brand:"Precision Fuel",name:"PF 90 Drink Mix",type:"iso",carbs:90,sodium:1000,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["pendant"]},
+  {id:"ta_en_gel_energetique_citron",brand:"TA Energy",name:"Gel Énergétique Citron",type:"gel",carbs:33,sodium:50,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"ta_en_gommes_energetiques",brand:"TA Energy",name:"Gommes Énergétiques",type:"chew",carbs:22,sodium:0,caffeine:0,volume:0,fractions:[1,0.667,0.333],moment:["pendant"]},
+  {id:"ta_en_pastilles_electrolytes",brand:"TA Energy",name:"Pastilles Électrolytes",type:"electro",carbs:1,sodium:300,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["pendant"]},
+  {id:"ta_en_boisson_d_endurance",brand:"TA Energy",name:"Boisson d'endurance",type:"iso",carbs:40,sodium:200,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["pendant"]},
+  {id:"ta_en_barre_organique_amande",brand:"TA Energy",name:"Barre Organique (Amande)",type:"bar",carbs:25,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["avant","pendant"]},
+  {id:"decat_gel_energetique_short_distance",brand:"Décathlon (Aptonia)",name:"Gel Énergétique Short Distance",type:"gel",carbs:22,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"decat_gel_energetique_long_distance",brand:"Décathlon (Aptonia)",name:"Gel Énergétique Long Distance",type:"gel",carbs:22,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"decat_iso_poudre",brand:"Décathlon (Aptonia)",name:"ISO Poudre",type:"iso",carbs:34,sodium:300,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["pendant"]},
+  {id:"decat_pate_d_amande",brand:"Décathlon (Aptonia)",name:"Pâte d'amande",type:"bar",carbs:15,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"decat_tabs_electrolytes",brand:"Décathlon (Aptonia)",name:"Tabs Électrolytes",type:"electro",carbs:0,sodium:300,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["pendant"]},
+  {id:"decat_nougat_energetique",brand:"Décathlon (Aptonia)",name:"Nougat Énergétique",type:"bar",carbs:28,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"maurt_gel_100",brand:"Maurten",name:"Gel 100",type:"gel",carbs:25,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"maurt_gel_100_caf_100",brand:"Maurten",name:"Gel 100 CAF 100",type:"gel",carbs:25,sodium:0,caffeine:100,volume:0,fractions:[1,0.5],moment:["pendant","fin"]},
+  {id:"maurt_drink_mix_320",brand:"Maurten",name:"Drink Mix 320",type:"iso",carbs:79,sodium:200,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["pendant"]},
+  {id:"maurt_solid_160",brand:"Maurten",name:"Solid 160",type:"bar",carbs:40,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["avant","pendant"]},
+  {id:"sis_go_isotonic_gel",brand:"SIS",name:"GO Isotonic Gel",type:"gel",carbs:22,sodium:0,caffeine:0,volume:60,fractions:[1,0.5],moment:["pendant"]},
+  {id:"sis_beta_fuel_gel",brand:"SIS",name:"Beta Fuel Gel",type:"gel",carbs:40,sodium:0,caffeine:0,volume:60,fractions:[1,0.5],moment:["pendant"]},
+  {id:"sis_hydro_tabs",brand:"SIS",name:"Hydro Tabs",type:"electro",carbs:1,sodium:300,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["pendant"]},
+  {id:"overs_gatosport",brand:"Overstims",name:"Gatosport",type:"preload",carbs:105,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["avant","pendant"]},
+  {id:"overs_coup_de_fouet",brand:"Overstims",name:"Coup de Fouet",type:"gel",carbs:26,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant","fin"]},
+  {id:"overs_hydrixir_longue_distance",brand:"Overstims",name:"Hydrixir Longue Distance",type:"iso",carbs:43,sodium:200,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["pendant"]},
+  {id:"overs_barre_amelix",brand:"Overstims",name:"Barre Amelix",type:"bar",carbs:18,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"naak_ultra_energy_gel_sirop_d_erable",brand:"Näak",name:"Ultra Energy Gel (Sirop d'érable)",type:"gel",carbs:27,sodium:50,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"naak_ultra_energy_bar_beurre_de_cacahuet",brand:"Näak",name:"Ultra Energy Bar (Beurre de cacahuète)",type:"bar",carbs:28,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"naak_ultra_energy_drink_mix_citron",brand:"Näak",name:"Ultra Energy Drink Mix (Citron)",type:"iso",carbs:55,sodium:200,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["pendant"]},
+  {id:"naak_ultra_energy_waffles",brand:"Näak",name:"Ultra Energy Waffles",type:"chew",carbs:16,sodium:0,caffeine:0,volume:0,fractions:[1,0.667,0.333],moment:["avant","pendant"]},
+  {id:"melto_gel_energetique_endurance_miel_gin",brand:"Meltonic",name:"Gel Énergétique Endurance (Miel/Ginseng)",type:"gel",carbs:15,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"melto_boisson_energetique_antioxydante",brand:"Meltonic",name:"Boisson Énergétique Antioxydante",type:"iso",carbs:33,sodium:200,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["pendant"]},
+  {id:"melto_barre_energetique_epeautre_miel",brand:"Meltonic",name:"Barre Énergétique Épeautre & Miel",type:"bar",carbs:20,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"baouw_puree_biologique_poire_pomme_menth",brand:"Baouw",name:"Purée Biologique Poire-Pomme-Menthe",type:"puree",carbs:17,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"baouw_puree_salee_patate_douce_carotte",brand:"Baouw",name:"Purée Salée Patate Douce-Carotte",type:"salty",carbs:15,sodium:300,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"baouw_barre_nutritionnelle_myrtille_nois",brand:"Baouw",name:"Barre Nutritionnelle Myrtille-Noisette",type:"bar",carbs:13,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"holyf_poche_energie_macadamia_sel",brand:"Holyfat",name:"Poche Énergie Macadamia-Sel",type:"fat",carbs:3,sodium:100,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"holyf_barre_energie_mct_cacao",brand:"Holyfat",name:"Barre Énergie MCT Cacao",type:"fat",carbs:4,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"preci_pf_30_caffeine_gel",brand:"Precision Fuel",name:"PF 30 Caffeine Gel",type:"gel",carbs:30,sodium:0,caffeine:100,volume:0,fractions:[1,0.5],moment:["fin"]},
+  {id:"maurt_drink_mix_160",brand:"Maurten",name:"Drink Mix 160",type:"iso",carbs:39,sodium:200,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["pendant"]},
+  {id:"sis_beta_fuel_chew",brand:"SIS",name:"Beta Fuel Chew",type:"chew",carbs:46,sodium:0,caffeine:0,volume:0,fractions:[1,0.667,0.333],moment:["pendant"]},
+  {id:"overs_malto_dextrin_bio",brand:"Overstims",name:"Malto Dextrin Bio",type:"preload",carbs:94,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["avant","pendant"]},
+  {id:"decat_boisson_de_recuperation_recup",brand:"Décathlon (Aptonia)",name:"Boisson de Récupération (Recup)",type:"recovery",carbs:21,sodium:200,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant","recup"]},
+  {id:"preci_pf_90_gel_caffeine",brand:"Precision Fuel",name:"PF 90 Gel + Caffeine",type:"gel",carbs:90,sodium:0,caffeine:300,volume:0,fractions:[1,0.667,0.333],moment:["pendant","fin"]},
+  {id:"preci_flow_gel_pf_30",brand:"Precision Fuel",name:"Flow Gel (PF 30)",type:"gel",carbs:30,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"ta_en_gommes_energetiques_cafeine_cola",brand:"TA Energy",name:"Gommes Énergétiques Caféine (Cola)",type:"chew",carbs:22,sodium:0,caffeine:50,volume:0,fractions:[1,0.667,0.333],moment:["pendant"]},
+  {id:"ta_en_gommes_energetiques_cafeine_cafe",brand:"TA Energy",name:"Gommes Énergétiques Caféine (Café)",type:"chew",carbs:22,sodium:0,caffeine:50,volume:0,fractions:[1,0.667,0.333],moment:["avant","pendant"]},
+  {id:"ta_en_caffeine_shot",brand:"TA Energy",name:"Caffeine Shot",type:"shot",carbs:10,sodium:0,caffeine:200,volume:60,fractions:[1],moment:["fin"]},
+  {id:"maurt_drink_mix_320_caf_100",brand:"Maurten",name:"Drink Mix 320 CAF 100",type:"iso",carbs:79,sodium:200,caffeine:100,volume:500,fractions:[1,0.75,0.667,0.5],moment:["pendant"]},
+  {id:"sis_go_energy_caffeine_gel",brand:"SIS",name:"GO Energy + Caffeine Gel",type:"gel",carbs:22,sodium:0,caffeine:75,volume:60,fractions:[1,0.5],moment:["pendant"]},
+  {id:"sis_beta_fuel_nootropics_gel",brand:"SIS",name:"Beta Fuel + Nootropics Gel",type:"gel",carbs:40,sodium:0,caffeine:200,volume:60,fractions:[1,0.5],moment:["pendant","fin"]},
+  {id:"overs_red_tonic",brand:"Overstims",name:"Red Tonic",type:"gel",carbs:25,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["fin"]},
+  {id:"overs_cafein_gel",brand:"Overstims",name:"Caféin'gel",type:"gel",carbs:26,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["fin"]},
+  {id:"melto_gel_energetique_ultra_endurance_mi",brand:"Meltonic",name:"Gel Énergétique Ultra Endurance (Miel/Guarana)",type:"gel",carbs:15,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"baouw_puree_biologique_framboise_fraise_",brand:"Baouw",name:"Purée Biologique Framboise-Fraise-Hibiscus",type:"puree",carbs:18,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"baouw_barre_nutritionnelle_banane_cacao_",brand:"Baouw",name:"Barre Nutritionnelle Banane-Cacao-Cacahuète",type:"bar",carbs:12,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"gener_compote_de_fruits",brand:"Générique",name:"Compote de fruits",type:"puree",carbs:20,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]}
 ];
-let selectedProducts = ['pf30chew','pf90gel','pf60drink','ph1000']; // défaut
+
+// URL de la base produits publiée (Google Sheet CSV) — rechargement futur côté navigateur
+const CATALOG_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRj8gpfooGr3ElbXgw7ZioDCq68xHUPp1JfMO1R0Gn5-3byZhRFolOUC_AYDQLQhTOqGJz2sy960s1Y/pub?gid=1986467812&single=true&output=csv";
+
+// Alias de compatibilité
+let PRODUCTS = CATALOG;
+
+// Placard par défaut : un set Precision Fuel cohérent (gel, gel90, chew, électrolytes)
+let selectedProducts = ['preci_pf_30_gel','preci_pf_90_gel','preci_pf_30_chew','preci_pf_90_drink_mix','preci_hydration_packets_pf_1500'];
 
 function renderProductGrid() {
   const grid = document.getElementById('productGrid');
@@ -765,15 +823,50 @@ function buildNutritionPlan(course, cfg) {
   const hydratFactor = cfg.meteo === 'chaud' ? 1.4 : cfg.meteo === 'froid' ? 0.8 : 1.0;
   const mlPerHour = Math.round(500 * hydratFactor);
 
-  // Produits sélectionnés
+  // Produits sélectionnés (catalogue à fractions)
   const sel = (cfg.produits || []).map(getProduct).filter(Boolean);
-  const gels    = sel.filter(p => (p.type === 'gel' || p.type === 'chew') && !p.splittable);
-  const bigGels = sel.filter(p => p.splittable);          // ex: PF 90 -> 3×30g
-  const drinks  = sel.filter(p => p.type === 'drink');
-  const electros= sel.filter(p => p.type === 'electro');
-  const caffGel = sel.find(p => p.caf > 0);
-  const drink   = drinks[0] || null;
-  const electro = electros[0] || null;
+  const isos     = sel.filter(p => p.type === 'iso');           // boissons glucidiques
+  const electros = sel.filter(p => p.type === 'electro');       // électrolytes sans glucides
+  const sweets   = sel.filter(p => ['gel','chew','bar','puree'].includes(p.type)); // solides sucrés
+  const caffProd = sel.filter(p => (p.caffeine||0) > 0).sort((a,b)=>b.caffeine-a.caffeine)[0] || null;
+  const drink    = isos[0] || null;
+  const electro  = electros[0] || null;
+
+  // Libellé d'une fraction lisible (1, 3/4, 2/3, 1/2, 1/3)
+  function fracLabel(f) {
+    if (f >= 0.999) return '1';
+    if (Math.abs(f-0.75)<0.02) return '3/4';
+    if (Math.abs(f-0.667)<0.02) return '2/3';
+    if (Math.abs(f-0.5)<0.02) return '1/2';
+    if (Math.abs(f-0.333)<0.02) return '1/3';
+    return f.toFixed(2);
+  }
+  // Unité d'affichage selon le type
+  function unitWord(p) {
+    if (p.type === 'iso' || p.type === 'electro') return 'flasque';
+    if (p.type === 'gel')  return 'gel';
+    if (p.type === 'chew') return 'paquet';
+    if (p.type === 'bar')  return 'barre';
+    if (p.type === 'puree')return 'gourde';
+    if (p.type === 'salty')return 'portion';
+    return 'portion';
+  }
+  // Apport d'une fraction de produit : {carbs, sodium, vol}
+  function fracIntake(p, f) {
+    return { carbs: p.carbs*f, sodium: (p.sodium||0)*f, vol: (p.volume||0)*f };
+  }
+  // Formate "X <unité> <nom> (Yg)" — flasques affichées en fractions réalistes
+  function fracText(p, f) {
+    const fl = fracLabel(f);
+    const u  = unitWord(p);
+    const g  = Math.round(p.carbs*f);
+    if (p.type === 'electro') {
+      // pas de glucides : on indique le volume + sodium (réalisme terrain)
+      const ml = Math.round((p.volume||500)*f);
+      return `${fl} flasque ${p.name} (${ml}ml)`;
+    }
+    return `${fl} ${u} ${p.name} (${g}g)`;
+  }
 
   // km approximatif à un temps donné (basé sur le modèle pente+fatigue)
   function kmAtTime(targetMins) {
@@ -785,50 +878,50 @@ function buildNutritionPlan(course, cfg) {
   }
   function slopeAt(p) { return p ? p.slope : 0; }
 
-  // ----- BANQUE DE SOLIDES SUCRÉS (tous les produits cochés) -----
-  // On fait TOURNER tous les sucrés cochés (gels, gommes, gel caféine, gel 90...)
-  // pour varier les plaisirs à chaque heure. Le gel 90 compte comme 3 portions de
-  // 30g réparties dans la rotation (jamais 3 fois d'affilée).
-  const sweetProducts = sel.filter(p => p.type === 'gel' || p.type === 'chew');
-  // Construire une file de "portions de 30g" : chaque produit non fractionnable = 1 entrée,
-  // chaque gel 90 = autant d'entrées que de portions (splittable), mais on intercale.
-  const big90 = {};  // suivi des portions restantes par gel 90 (par id)
-  sweetProducts.forEach(p => { if (p.splittable) big90[p.id] = p.splittable; });
+  // ----- ROTATION DES SOLIDES SUCRÉS (variété) -----
+  // Fait tourner tous les sucrés cochés. Les gels XL (fractions à 1/3) sont servis
+  // par tiers répartis dans la rotation (jamais 3 fois d'affilée).
   let sweetIdx = 0;
+  const xlState = {}; // suivi des portions restantes pour gels XL (fraction mini < 0.5)
+  sweets.forEach(p => { const mn = Math.min(...p.fractions); if (mn <= 0.4) xlState[p.id] = Math.round(1/mn); });
 
-  function makeSolid(g) {
-    if (g.splittable) {
-      addInv(g.name, 1/g.splittable);
-      return { label:`1/${g.splittable} de ${g.name} (30g)`, carbs:g.carbs/g.splittable };
-    }
-    const n = Math.max(1, Math.round(30 / g.carbs));
-    addInv(g.name, n);
-    return { label:`${n}× ${g.name} (${g.carbs*n}g)`, carbs:g.carbs*n };
-  }
-
-  // Sélectionne ~30g de glucides sucrés en variant la source à chaque appel.
+  // Sélectionne ~30g de glucides sucrés en variant la source.
   function pickSolid30(preferCaffeine) {
-    if (!sweetProducts.length) return null;
-    // Coup de fouet caféine prioritaire si demandé (dernier tiers)
-    if (preferCaffeine && caffGel) {
-      addInv(caffGel.name, 1);
-      return { label:`1× ${caffGel.name} (${caffGel.carbs}g)`, carbs:caffGel.carbs };
+    if (!sweets.length) return null;
+    // Coup de fouet caféine prioritaire (dernier tiers)
+    if (preferCaffeine && caffProd && ['gel','chew','bar'].includes(caffProd.type)) {
+      const f = caffProd.fractions.includes(0.5) && caffProd.carbs>40 ? 0.5 : 1;
+      addInv(fracKey(caffProd,f), 1);
+      return { label: fracText(caffProd,f), carbs: caffProd.carbs*f, caf:true };
     }
-    // Rotation simple : produit suivant. Pour un gel 90, on ne le ressert que s'il
-    // lui reste des portions (sinon on saute au produit suivant).
     let tries = 0;
-    while (tries < sweetProducts.length * 2) {
-      const g = sweetProducts[sweetIdx % sweetProducts.length];
+    while (tries < sweets.length * 2) {
+      const g = sweets[sweetIdx % sweets.length];
       sweetIdx++; tries++;
-      if (g.splittable) {
-        if (big90[g.id] > 0) { big90[g.id]--; return makeSolid(g); }
-        else continue; // gel 90 épuisé, passer au suivant
+      const mn = Math.min(...g.fractions);
+      // Gel XL : servir 1 portion (la plus petite fraction) s'il en reste
+      if (mn <= 0.4) {
+        if (xlState[g.id] > 0) { xlState[g.id]--; addInv(fracKey(g,mn),1); return { label: fracText(g,mn), carbs: g.carbs*mn }; }
+        else continue;
       }
-      return makeSolid(g);
+      // Produit standard : viser ~30g via une fraction dispo
+      const f = pickFractionForTarget(g, 30);
+      addInv(fracKey(g,f), 1);
+      return { label: fracText(g,f), carbs: g.carbs*f };
     }
-    // Tous les gels 90 épuisés et rien d'autre : reprendre le 1er produit
-    return makeSolid(sweetProducts[0]);
+    const g0 = sweets[0]; const f0 = pickFractionForTarget(g0, 30);
+    addInv(fracKey(g0,f0),1);
+    return { label: fracText(g0,f0), carbs: g0.carbs*f0 };
   }
+  // Clé d'inventaire = "nom (fraction)"
+  function fracKey(p,f){ return f>=0.999 ? p.name : `${p.name} (${fracLabel(f)})`; }
+  // Choisit la fraction d'un produit dont l'apport carb est le plus proche de target
+  function pickFractionForTarget(p, target) {
+    let best = p.fractions[0], err = Infinity;
+    p.fractions.forEach(f => { const e = Math.abs(p.carbs*f - target); if (e < err) { err = e; best = f; } });
+    return best;
+  }
+
 
   const events = [];
   // Compteurs d'inventaire alimentés pendant la génération
@@ -867,103 +960,102 @@ function buildNutritionPlan(course, cfg) {
     const parts = [];
     let carbsSum = 0;
     let sodiumSum = 0;
+    let volSum = 0;        // volume liquide cumulé (ml)
     let warnRefill = false;
-    let thisForm = null;     // forme dominante de l'heure (pour anti-monotonie)
+    let thisForm = null;
 
-    // ---------- LOGIQUE D'APPORT ----------
-    // Principe : CHAQUE heure combine une base LIQUIDE (boisson ISO) + un peu de
-    // SOLIDE (sucré ou salé). Jamais 100% liquide. On alterne la NATURE du solide :
-    // dès la 4e h, le salé revient plus souvent que le sucré (alterne salé/sucré,
-    // mais privilégie le salé). Le dernier 20% allège le solide (semi-liquide) mais
-    // garde un apport solide léger pour ne pas être 100% liquide.
-    let usedSalty = false;
-    const half = drink ? (drink.flaskCarbs || Math.round(drink.carbs/2)) : 30;
-
-    // 1) Décider du SOLIDE de l'heure.
-    //    Dès la 4e h : le SALÉ domine (revient souvent), entrecoupé de sucré ~1 fois
-    //    sur 3 pour varier. Avant la 4e h : sucré uniquement, mais on varie la source.
+    // 1) SOLIDE de l'heure (salé dominant après h4, sinon sucré varié)
     let solidPart = null, solidCarbs = 0, solidSodium = 0;
     const saltyReady = saltyFood && h >= 4;
-    // Insérer du sucré (au lieu du salé) si : pas de salé dispo, OU on a déjà
-    // enchaîné 2 salés (on glisse 1 sucré pour varier).
     const twoSaltyInARow = (lastForm === 'sale' && lastForm2 === 'sale');
     if (saltyReady && !twoSaltyInARow) {
-      solidPart = `${saltyFood.name} (${saltyFood.carbs}g)`;
+      solidPart = `Option salée (${saltyFood.carbs}g)`;
       solidCarbs = saltyFood.carbs; solidSodium = saltyFood.sodium;
-      addInv(saltyFood.name, 1);
-      lastSaltyHour = h; usedSalty = true; thisForm = 'sale';
+      addInv('Option salée', 1);
+      lastSaltyHour = h; thisForm = 'sale';
     } else {
-      // Solide sucré (alterne la source : gel90 fractionné / gomme / gel selon dispo)
       const solid = pickSolid30(isLastThird);
       if (solid) { solidPart = solid.label; solidCarbs = solid.carbs; thisForm = 'sucre'; }
     }
 
-    // 2) Base LIQUIDE : compléter jusqu'à carbsH sans dépasser, via la boisson ISO
+    // 2) BASE LIQUIDE (boisson ISO) en FRACTION de flasque, sans dépasser la cible
     if (drink) {
       const deficit = Math.max(0, carbsH - solidCarbs);
-      let needed = Math.floor(deficit / half);
-      if (deficit - needed*half >= half*0.8) needed += 1;
-      // garantir au moins 1/2 flasque (toujours un peu de liquide glucidique)
-      needed = Math.max(1, Math.min(4, needed));
-      const lbl = needed === 1 ? `1/2 flasque ${drink.name} (${half}g)`
-                : needed === 2 ? `1 flasque ${drink.name} (${half*2}g)`
-                : `${(needed/2).toFixed(1)} flasque ${drink.name} (${half*needed}g)`;
-      parts.push(lbl);
-      carbsSum += needed * half;
-      sodiumSum += (drink.sodium || 0) * needed * 0.5;
-      addInv(drink.name + ' (dose 1/2 flasque)', needed);
-      flaskIsoLeft -= needed * 0.5;
-      if (flaskIsoLeft < 0.5) { warnRefill = true; flaskIsoLeft += 1.0; }
+      // choisir la fraction de flasque ISO la plus proche du déficit (sans gros dépassement)
+      let chosen = drink.fractions[drink.fractions.length-1]; // mini par défaut
+      let err = Infinity;
+      drink.fractions.forEach(f => {
+        const c = drink.carbs*f;
+        const over = c - deficit;
+        const e = Math.abs(over) + (over > 8 ? 100 : 0); // pénalise surdosage >8g
+        if (e < err) { err = e; chosen = f; }
+      });
+      const intake = fracIntake(drink, chosen);
+      parts.push(fracText(drink, chosen));
+      carbsSum += intake.carbs; sodiumSum += intake.sodium; volSum += intake.vol;
+      addInv(fracKey(drink, chosen), 1);
+      flaskIsoLeft -= chosen;
+      if (flaskIsoLeft < 0.34) { warnRefill = true; flaskIsoLeft += 1.0; }
     }
 
-    // 3) Ajouter le SOLIDE (toujours, même en fin de course : un peu de solide léger)
-    if (solidPart) {
-      parts.push(solidPart);
-      carbsSum += solidCarbs;
-      sodiumSum += solidSodium;
-    } else if (!drink && gels.length) {
-      // Filet de sécurité : aucun produit liquide ni solide trouvé
-      const g = gels[0];
-      parts.push(`1× ${g.name} (${g.carbs}g)`); carbsSum += g.carbs; addInv(g.name,1);
+    // 3) AJOUTER LE SOLIDE (toujours un peu de solide, jamais 100% liquide)
+    if (solidPart) { parts.push(solidPart); carbsSum += solidCarbs; sodiumSum += solidSodium; }
+
+    // 4) COMPLÉTION INTELLIGENTE (chantier 1) : si déficit > tolérance, ajouter la
+    //    fraction d'un AUTRE produit dispo qui rapproche le plus de carbsH (sans surdoser).
+    const TOL = 8;
+    let guard = 0;
+    while ((carbsH - carbsSum) > TOL && guard < 3) {
+      guard++;
+      const need = carbsH - carbsSum;
+      // candidats : tous les sucrés + ISO, chaque fraction
+      let bestP=null, bestF=0, bestErr=Infinity;
+      [...sweets, ...isos].forEach(p => {
+        p.fractions.forEach(f => {
+          const c = p.carbs*f;
+          if (c < 4) return;                       // ignorer fractions trop petites
+          const over = (carbsSum + c) - carbsH;
+          const e = Math.abs(over) + (over > 6 ? 50 : 0);
+          if (e < bestErr) { bestErr=e; bestP=p; bestF=f; }
+        });
+      });
+      if (!bestP || carbsSum + bestP.carbs*bestF > carbsH + 6) break;
+      const intk = fracIntake(bestP, bestF);
+      parts.push(fracText(bestP, bestF));
+      carbsSum += intk.carbs; sodiumSum += intk.sodium; volSum += intk.vol;
+      addInv(fracKey(bestP,bestF), 1);
     }
 
-    // ---------- COHÉRENCE HYDRIQUE : compléter le VOLUME à mlPerHour ----------
-    // Volume déjà fourni par les flasques ISO (1/2 flasque ≈ 250 ml).
-    // Le reste est comblé par EAU PURE (+ électrolytes sans glucides), JAMAIS d'ISO sup.
-    let volFromIso = 0;
-    parts.forEach(s => {
-      const m = s.match(/([\d.]+) flasque|1\/2 flasque/);
-      if (s.includes('flasque') && drink && s.includes(drink.name)) {
-        if (s.includes('1/2 flasque')) volFromIso += 250;
-        else { const mm = s.match(/([\d.]+) flasque/); if (mm) volFromIso += parseFloat(mm[1])*500; }
+    // 5) COHÉRENCE HYDRIQUE (chantier 4) : compléter le VOLUME jusqu'à mlPerHour
+    //    avec des ÉLECTROLYTES SANS glucides, exprimés en FRACTION de flasque.
+    //    INTERDIT d'ajouter de l'ISO ici (quota glucides déjà atteint).
+    const waterNeeded = Math.max(0, mlPerHour - volSum);
+    if (waterNeeded >= 150) {
+      if (electro) {
+        // fraction de flasque électrolyte couvrant ~waterNeeded (flasque = volume du produit ou 500ml)
+        const flaskVol = electro.volume || 500;
+        let f = Math.min(1, waterNeeded / flaskVol);
+        // arrondir à une fraction réaliste
+        const realF = [1,0.75,0.667,0.5].reduce((b,x)=> Math.abs(x-f)<Math.abs(b-f)?x:b, 0.5);
+        const ml = Math.round(flaskVol*realF);
+        parts.push(`${fracLabel(realF)} flasque ${electro.name} (${ml}ml)`);
+        sodiumSum += (electro.sodium||0)*realF;
+        volSum += ml;
+        addInv(`${electro.name} (${fracLabel(realF)})`, 1);
+        flaskEleLeft -= realF;
+        if (flaskEleLeft < 0.34) { warnRefill = true; flaskEleLeft += 1.0; }
+      } else {
+        parts.push(`${waterNeeded} ml eau pure`);
       }
-    });
-    const waterNeeded = Math.max(0, mlPerHour - volFromIso);
-
-    // ---------- ÉLECTROLYTES (sans glucides) sur l'eau pure ----------
-    let electroLabel = '';
-    if (electro && waterNeeded >= 200) {
-      // 1 dose électrolyte par ~500 ml d'eau pure
-      const doses = Math.max(1, Math.round(waterNeeded / 500));
-      electroLabel = `${waterNeeded} ml eau + ${doses}× ${electro.name}`;
-      sodiumSum += (electro.sodium || 0) * doses;
-      addInv(electro.name, doses);
-      flaskEleLeft -= doses * 0.5;
-      if (flaskEleLeft < 0.5) { warnRefill = true; flaskEleLeft += 1.0; }
-    } else if (waterNeeded >= 100) {
-      electroLabel = `${waterNeeded} ml eau pure`;
-    } else if (volFromIso > 0) {
-      electroLabel = `(volume couvert par la boisson)`;
     }
-    if (electroLabel) parts.push(electroLabel);
 
     // Priorité / fenêtre digestive selon le moment & la pente
     let priority = 'normal';
     let note = '';
     if (h === 1) { priority = 'prio'; note = 'Démarrage progressif'; }
     else if (isLastFifth) { priority = 'alert'; note = 'Liquide uniquement — fenêtre digestive réduite' + (isUltra?' · bouillon salé si nausée':''); }
-    else if (isLastThird) { priority = 'warn'; note = 'Surveiller nausées' + (caffGel?' · caféine = coup de fouet':''); }
-    else if (usedSalty) { priority = 'prio'; note = 'Apport salé (vraie nourriture) — reposant'; }
+    else if (isLastThird) { priority = 'warn'; note = 'Surveiller nausées' + (caffProd?' · caféine = coup de fouet':''); }
+    else if (thisForm === 'sale') { priority = 'prio'; note = 'Apport salé (vraie nourriture) — reposant'; }
     else if (slope < -3) { priority = 'prio'; note = 'Descente : fenêtre digestive idéale'; }
     else if (slope > 8)  { priority = 'normal'; note = 'Montée : privilégier liquide'; }
 
@@ -993,9 +1085,20 @@ function buildNutritionPlan(course, cfg) {
     carbs:70, eau_ml:500, priority:'prio', warnRefill:false
   });
 
-  // ----- INVENTAIRE PRODUITS (compté pendant la génération) -----
+  // ----- INVENTAIRE PRODUITS : consolidé par produit (somme des fractions) -----
+  // inv contient des clés "Nom" ou "Nom (1/2)" avec un nombre de prises.
+  // On regroupe par nom de base et on somme les fractions → unités entières à emporter.
+  const fracVal = { '1/2':0.5, '2/3':0.667, '3/4':0.75, '1/3':0.333, '1/4':0.25 };
+  const baseUnits = {};
+  Object.keys(inv).forEach(k => {
+    const m = k.match(/^(.*?)\s*\(([\d/]+)\)\s*$/);
+    let base, units;
+    if (m && fracVal[m[2]] !== undefined) { base = m[1].trim(); units = inv[k] * fracVal[m[2]]; }
+    else { base = k; units = inv[k]; }
+    baseUnits[base] = (baseUnits[base] || 0) + units;
+  });
   const inventory = {};
-  Object.keys(inv).forEach(k => { inventory[k] = Math.ceil(inv[k]); });
+  Object.keys(baseUnits).forEach(k => { inventory[k] = Math.ceil(baseUnits[k] - 1e-6); });
 
   // ----- TOTAUX -----
   const raceEv = events.filter(e => e.type === 'hour');
