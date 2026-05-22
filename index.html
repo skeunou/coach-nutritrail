@@ -179,6 +179,22 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .prod-meta{font-size:11px;color:var(--mut)}
 .prod-cat{font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:var(--surf);color:var(--mut);flex-shrink:0}
 
+/* SALTY OPTION */
+.info-icon{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--surf2);border:1px solid var(--bdr);color:var(--acc);font-size:11px;font-style:italic;font-weight:700;cursor:pointer;transition:.15s}
+.info-icon:hover{border-color:var(--acc);background:rgba(232,255,71,.1)}
+.salty-toggle{display:flex;gap:8px;margin-top:4px}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.show{display:flex}
+.modal-box{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:20px;max-width:520px;width:100%;max-height:85vh;overflow-y:auto}
+.modal-head{display:flex;justify-content:space-between;align-items:center;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;color:var(--acc);margin-bottom:12px}
+.modal-close{cursor:pointer;color:var(--mut);font-size:18px}
+.modal-close:hover{color:var(--txt)}
+.modal-warn{background:rgba(255,149,0,.1);border:1px solid rgba(255,149,0,.3);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--warn);margin-bottom:12px}
+.salty-table{width:100%;border-collapse:collapse;font-size:12px}
+.salty-table th{background:var(--surf2);color:var(--mut);text-transform:uppercase;font-size:10px;padding:8px;text-align:left}
+.salty-table td{padding:8px;border-bottom:1px solid rgba(42,42,48,.6)}
+.salty-table td:not(:first-child){text-align:right;color:var(--acc);white-space:nowrap}
+
 /* CHECKLIST */
 .checklist{list-style:none;margin-top:12px}
 .checklist li{padding:10px 0;border-bottom:1px solid rgba(42,42,48,.6);display:flex;align-items:center;gap:10px;font-size:13px}
@@ -277,6 +293,23 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <div id="productGrid" class="product-grid"></div>
       <div class="hint">Coche les produits que tu emporteras. Le plan piochera dedans selon les moments de course.</div>
     </div>
+
+    <div class="form-group full">
+      <label style="display:flex;align-items:center;gap:8px">
+        Option salée (vraie nourriture)
+        <span class="info-icon" onclick="toggleSaltyTip()" title="Voir les équivalences">i</span>
+      </label>
+      <div class="salty-toggle">
+        <span class="radio-opt" id="saltyOff" onclick="setSalty(false)">Désactivé</span>
+        <span class="radio-opt sel" id="saltyOn" onclick="setSalty(true)">Activé</span>
+      </div>
+      <div id="saltyFields" style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-top:8px">
+        <input type="text" id="fSaltyName" placeholder="Nom (ex: 1/4 wrap Samoret)" value="1/4 wrap Samoret">
+        <input type="number" id="fSaltyCarbs" placeholder="Glucides (g)" value="20">
+        <input type="number" id="fSaltySodium" placeholder="Sodium (mg)" value="300">
+      </div>
+      <div class="hint">Intégré à partir de la 4e heure, max 1×/2-3h (digestion). Clique sur (i) pour les équivalences.</div>
+    </div>
   </div>
 
   <div class="btn-row">
@@ -284,6 +317,32 @@ tr:hover td{background:rgba(255,255,255,.02)}
       ⚡ Générer le plan
     </button>
     <button class="btn btn-outline" onclick="resetApp()">🔄 Réinitialiser</button>
+  </div>
+
+  <div id="saltyTip" class="modal-overlay" onclick="if(event.target===this)toggleSaltyTip()">
+    <div class="modal-box">
+      <div class="modal-head">
+        <span>💡 Équivalences produits salés maison</span>
+        <span class="modal-close" onclick="toggleSaltyTip()">✕</span>
+      </div>
+      <div class="modal-warn">⚠️ La seule sauce/recette acceptée est le <b>Samoret</b>.</div>
+      <table class="salty-table">
+        <thead><tr><th>Produit</th><th>Glucides</th><th>Sodium</th></tr></thead>
+        <tbody>
+          <tr><td>Mini-navette briochée (Jambon/Samoret)</td><td>~15g</td><td>~250mg</td></tr>
+          <tr><td>1/4 de Wrap (Thon/Poulet Samoret)</td><td>~15g</td><td>~300mg</td></tr>
+          <tr><td>Petite patate douce cuite à l'eau et salée</td><td>~20g</td><td>~350mg</td></tr>
+          <tr><td>Une poignée de Tucs (≈5 biscuits)</td><td>~18g</td><td>~350mg</td></tr>
+          <tr><td>Mini-portion coquillettes poulet/jambon (50g cuites)</td><td>~15g</td><td>~200mg</td></tr>
+          <tr><td>1/4 de Pizza classique (pâte fine, jambon/fromage)</td><td>~20g</td><td>~400mg</td></tr>
+          <tr><td>Poignée de bretzels salés (≈20g)</td><td>~15g</td><td>~350mg</td></tr>
+          <tr><td>Mini Babybel ou Comté + 3 crackers</td><td>~12g</td><td>~300mg</td></tr>
+          <tr><td>Purée pdt maison salée jambon/poulet (80g)</td><td>~15g</td><td>~350mg</td></tr>
+          <tr><td>Demi-sandwich pain de mie (Jambon/Beurre)</td><td>~15g</td><td>~250mg</td></tr>
+        </tbody>
+      </table>
+      <div class="hint" style="margin-top:10px">Reporte les valeurs dans les champs ci-dessus pour ton produit choisi.</div>
+    </div>
   </div>
 
   <div class="loading" id="loadingDiv">
@@ -389,6 +448,25 @@ function toggleProduct(id) {
 }
 
 function getProduct(id) { return PRODUCTS.find(p => p.id === id); }
+
+function toggleSaltyTip() {
+  document.getElementById('saltyTip').classList.toggle('show');
+}
+function setSalty(on) {
+  document.getElementById('saltyOn').classList.toggle('sel', on);
+  document.getElementById('saltyOff').classList.toggle('sel', !on);
+  document.getElementById('saltyFields').style.display = on ? 'grid' : 'none';
+}
+function getSaltyConfig() {
+  const on = document.getElementById('saltyOn').classList.contains('sel');
+  if (!on) return { enabled: false };
+  return {
+    enabled: true,
+    name: (document.getElementById('fSaltyName').value || 'Salé maison').trim(),
+    carbs: parseInt(document.getElementById('fSaltyCarbs').value) || 20,
+    sodium: parseInt(document.getElementById('fSaltySodium').value) || 300
+  };
+}
 
 // ============================================================
 // UTILS
@@ -766,6 +844,11 @@ function buildNutritionPlan(course, cfg) {
   let flaskIsoLeft = 1.0;   // suivi flasque ISO (1 = pleine)
   let flaskEleLeft = 1.0;   // suivi flasque électrolytes
 
+  // Produit salé perso (Samoret & co) — défini par l'utilisateur
+  const saltyFood = cfg.saltyFood && cfg.saltyFood.enabled ? cfg.saltyFood : null;
+  let lastSaltyHour = -99;    // pour espacer le salé (≥2h)
+  let lastForm = null;        // 'solide' | 'liquide' — pour l'anti-monotonie
+
   for (let h = 1; h <= nbHours; h++) {
     const tMin = h * 60;
     const p = kmAtTime(Math.min(tMin, totalMins));
@@ -775,51 +858,118 @@ function buildNutritionPlan(course, cfg) {
     const isLastFifth = ratio > 0.80;
     const slope = slopeAt(p);
 
-    // Composer l'apport visant carbsH g pour cette heure
     const parts = [];
     let carbsSum = 0;
+    let sodiumSum = 0;
     let warnRefill = false;
+    let thisForm = null;     // forme dominante de l'heure (pour anti-monotonie)
 
-    // Part 1 : solide / gel fractionné (sauf tout dernier 20% = liquide only)
-    if (!isLastFifth) {
-      const solid = pickSolid30(isLastThird);
-      if (solid) { parts.push(solid.label); carbsSum += solid.carbs; }
+    // ---------- ANTI-MONOTONIE ----------
+    // Si l'heure précédente était "solide", on privilégie le "liquide" cette heure
+    // (et inversement) pour reposer l'estomac. En dernier 20%, on force liquide.
+    const preferLiquid = isLastFifth || (lastForm === 'solide');
+
+    // ---------- APPORT SALÉ (vraie nourriture) ----------
+    // Autorisé seulement à partir de la 4e heure, et au plus 1 fois / 2h.
+    let usedSalty = false;
+    if (saltyFood && h >= 4 && !isLastFifth && (h - lastSaltyHour) >= 2 && !preferLiquid) {
+      parts.push(`${saltyFood.name} (${saltyFood.carbs}g)`);
+      carbsSum += saltyFood.carbs;
+      sodiumSum += saltyFood.sodium;
+      addInv(saltyFood.name, 1);
+      lastSaltyHour = h;
+      usedSalty = true;
+      thisForm = 'solide';
     }
 
-    // Part 2 : compléter avec boisson ISO pour approcher carbsH SANS dépasser.
-    if (drink) {
-      const half = drink.flaskCarbs || Math.round(drink.carbs/2);
-      const deficit = Math.max(0, carbsH - carbsSum);
-      let needed = Math.floor(deficit / half);   // ne jamais dépasser la cible
-      // si on est encore loin (>=80% d'une portion manquante) et qu'on ne dépasserait
-      // que légèrement, on autorise une portion de plus
-      if (deficit - needed*half >= half*0.8) needed += 1;
-      needed = Math.max(0, Math.min(4, needed));
-      if (needed >= 1) {
-        const label = needed === 1 ? `1/2 flasque ${drink.name} (${half}g)`
-                    : needed === 2 ? `1 flasque ${drink.name} (${half*2}g)`
-                    : `${(needed/2).toFixed(1)} flasque ${drink.name} (${half*needed}g)`;
-        parts.push(label);
+    // ---------- GLUCIDES PRINCIPAUX ----------
+    if (!usedSalty) {
+      if (preferLiquid && drink) {
+        // Heure "liquide" : viser carbsH via la boisson ISO SANS dépasser.
+        const half = drink.flaskCarbs || Math.round(drink.carbs/2);
+        let needed = Math.floor(carbsH / half);          // ne pas dépasser
+        if (carbsH - needed*half >= half*0.8) needed += 1; // arrondi sup si proche
+        needed = Math.max(1, Math.min(4, needed));
+        const lbl = needed === 1 ? `1/2 flasque ${drink.name} (${half}g)`
+                  : needed === 2 ? `1 flasque ${drink.name} (${half*2}g)`
+                  : `${(needed/2).toFixed(1)} flasque ${drink.name} (${half*needed}g)`;
+        parts.push(lbl);
         carbsSum += needed * half;
+        sodiumSum += (drink.sodium || 0) * needed * 0.5;
         addInv(drink.name + ' (dose 1/2 flasque)', needed);
         flaskIsoLeft -= needed * 0.5;
         if (flaskIsoLeft < 0.5) { warnRefill = true; flaskIsoLeft += 1.0; }
-      }
-    } else {
-      let guard = 0;
-      while (carbsSum + (gels[0]?.carbs||999)*0.5 < carbsH && gels.length && guard < 4) {
-        const g = gels[0];
-        parts.push(`1× ${g.name} (${g.carbs}g)`); carbsSum += g.carbs; addInv(g.name,1); guard++;
+        thisForm = 'liquide';
+      } else if (!isLastFifth) {
+        // Heure "solide/semi" : gel/gomme/gel90 fractionné
+        const solid = pickSolid30(isLastThird);
+        if (solid) { parts.push(solid.label); carbsSum += solid.carbs; thisForm = 'solide'; }
       }
     }
 
-    // Part 3 : électrolytes — 1 flasque dure ~2h, rappel quand vide
-    if (electro) {
-      parts.push(`électrolytes (${electro.name})`);
-      addInv(electro.name + ' (dose 1/2 flasque)', 1);
-      flaskEleLeft -= 0.5;
-      if (flaskEleLeft < 0.5) { warnRefill = true; flaskEleLeft += 1.0; }
+    // ---------- COMPLÉMENT GLUCIDIQUE (sans surdosage) ----------
+    // On complète UNIQUEMENT si le déficit est SUBSTANTIEL (≥ une portion ~25g),
+    // sinon on accepte d'être légèrement sous la cible (mieux que surdoser).
+    const carbDeficit = carbsH - carbsSum;
+    if (carbDeficit >= 25) {
+      if (isLastFifth && drink) {
+        const half = drink.flaskCarbs || Math.round(drink.carbs/2);
+        let needed = Math.floor(carbDeficit / half);
+        needed = Math.max(1, Math.min(2, needed));
+        carbsSum += needed*half; sodiumSum += (drink.sodium||0)*needed*0.5;
+        addInv(drink.name + ' (dose 1/2 flasque)', needed);
+        // fusionner avec la flasque déjà présente (affichage propre)
+        flaskIsoLeft -= needed*0.5; if (flaskIsoLeft < 0.5) { warnRefill = true; flaskIsoLeft += 1.0; }
+        // recomposer le libellé flasque global
+        const totalHalf = parts.filter(s=>s.includes(drink.name)).length; // approx
+        if (!thisForm) thisForm = 'liquide';
+        // ajouter une mention compacte
+        parts.push(`+${needed===1?'1/2':needed/2} flasque ${drink.name}`);
+      } else if (!isLastFifth && drink && thisForm === 'solide') {
+        // Solide déjà pris : compléter avec ISO seulement si déficit ≥ 25g
+        const half = drink.flaskCarbs || Math.round(drink.carbs/2);
+        let needed = Math.floor(carbDeficit / half);
+        needed = Math.max(1, Math.min(2, needed));
+        const lbl = needed === 1 ? `1/2 flasque ${drink.name} (${half}g)` : `1 flasque ${drink.name} (${half*2}g)`;
+        parts.push(lbl); carbsSum += needed*half; sodiumSum += (drink.sodium||0)*needed*0.5;
+        addInv(drink.name + ' (dose 1/2 flasque)', needed);
+        flaskIsoLeft -= needed*0.5; if (flaskIsoLeft < 0.5) { warnRefill = true; flaskIsoLeft += 1.0; }
+      } else if (gels.length && !isLastFifth && thisForm === 'liquide') {
+        // Base liquide insuffisante : ajouter 1 gel pour la texture (anti-monotonie OK)
+        const g = gels[0];
+        parts.push(`1× ${g.name} (${g.carbs}g)`); carbsSum += g.carbs; addInv(g.name,1);
+      }
     }
+
+    // ---------- COHÉRENCE HYDRIQUE : compléter le VOLUME à mlPerHour ----------
+    // Volume déjà fourni par les flasques ISO (1/2 flasque ≈ 250 ml).
+    // Le reste est comblé par EAU PURE (+ électrolytes sans glucides), JAMAIS d'ISO sup.
+    let volFromIso = 0;
+    parts.forEach(s => {
+      const m = s.match(/([\d.]+) flasque|1\/2 flasque/);
+      if (s.includes('flasque') && drink && s.includes(drink.name)) {
+        if (s.includes('1/2 flasque')) volFromIso += 250;
+        else { const mm = s.match(/([\d.]+) flasque/); if (mm) volFromIso += parseFloat(mm[1])*500; }
+      }
+    });
+    const waterNeeded = Math.max(0, mlPerHour - volFromIso);
+
+    // ---------- ÉLECTROLYTES (sans glucides) sur l'eau pure ----------
+    let electroLabel = '';
+    if (electro && waterNeeded >= 200) {
+      // 1 dose électrolyte par ~500 ml d'eau pure
+      const doses = Math.max(1, Math.round(waterNeeded / 500));
+      electroLabel = `${waterNeeded} ml eau + ${doses}× ${electro.name}`;
+      sodiumSum += (electro.sodium || 0) * doses;
+      addInv(electro.name, doses);
+      flaskEleLeft -= doses * 0.5;
+      if (flaskEleLeft < 0.5) { warnRefill = true; flaskEleLeft += 1.0; }
+    } else if (waterNeeded >= 100) {
+      electroLabel = `${waterNeeded} ml eau pure`;
+    } else if (volFromIso > 0) {
+      electroLabel = `(volume couvert par la boisson)`;
+    }
+    if (electroLabel) parts.push(electroLabel);
 
     // Priorité / fenêtre digestive selon le moment & la pente
     let priority = 'normal';
@@ -827,8 +977,11 @@ function buildNutritionPlan(course, cfg) {
     if (h === 1) { priority = 'prio'; note = 'Démarrage progressif'; }
     else if (isLastFifth) { priority = 'alert'; note = 'Liquide uniquement — fenêtre digestive réduite' + (isUltra?' · bouillon salé si nausée':''); }
     else if (isLastThird) { priority = 'warn'; note = 'Surveiller nausées' + (caffGel?' · caféine = coup de fouet':''); }
+    else if (usedSalty) { priority = 'prio'; note = 'Apport salé (vraie nourriture) — reposant'; }
     else if (slope < -3) { priority = 'prio'; note = 'Descente : fenêtre digestive idéale'; }
     else if (slope > 8)  { priority = 'normal'; note = 'Montée : privilégier liquide'; }
+
+    lastForm = thisForm || lastForm;
 
     events.push({
       type:'hour', hour:h, timeMins:tMin, km,
@@ -836,6 +989,7 @@ function buildNutritionPlan(course, cfg) {
       action: note,
       items: parts.join(' + '),
       carbs: Math.round(carbsSum),
+      sodium: Math.round(sodiumSum),
       eau_ml: mlPerHour,
       priority,
       warnRefill,
@@ -898,12 +1052,12 @@ function renderProfil() {
   <div class="card">
     <div class="card-title">Profil altimétrique</div>
     <canvas id="elevChart"></canvas>
-    <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--mut);margin-top:8px">
-      <span class="slope flat" style="border-radius:4px">Plat</span>
-      <span class="slope up-s" style="border-radius:4px">Montée douce</span>
-      <span class="slope up-r" style="border-radius:4px">Montée raide</span>
-      <span class="slope dn-s" style="border-radius:4px">Descente douce</span>
-      <span class="slope dn-r" style="border-radius:4px">Descente raide</span>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--mut);margin-top:10px">
+      <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:#4ade80;display:inline-block"></span>Plat</span>
+      <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:#ff9500;display:inline-block"></span>Montée douce</span>
+      <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:#f87171;display:inline-block"></span>Montée raide</span>
+      <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:#38bdf8;display:inline-block"></span>Descente douce</span>
+      <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:#a78bfa;display:inline-block"></span>Descente raide</span>
     </div>
   </div>
 
@@ -1138,25 +1292,24 @@ function renderPassage() {
   const slopeNames = { flat: 'Plat', 'up-s': 'Montée', 'up-r': '⚡ Raide', 'dn-s': 'Descente', 'dn-r': '⬇️ Raide' };
   const slopeCls = { flat: 'slope-flat', 'up-s': 'slope-up-s', 'up-r': 'slope-up-r', 'dn-s': 'slope-dn-s', 'dn-r': 'slope-dn-r' };
 
+  let cumDplus = 0;
   let rows = displayed.map((p, idx) => {
-    const ratio = p.dist / totalDist;
-    const fc = Math.round(fatigueCoeff(ratio, config.niveau) * 100);
     // Segment depuis la ligne précédente
     let segSlope = 0, segDp = 0;
     if (idx > 0) {
       const st = segmentStats(displayed[idx-1], p);
       segSlope = st.slope;
       segDp = Math.round(st.dPos);
+      cumDplus += segDp;
     }
     const cls = classifySlope(segSlope);
     return `<tr>
       <td><b>${(p.dist/1000).toFixed(1)} km</b></td>
       <td>${fmtTime(p.timeMins)}</td>
-      <td>${Math.round(p.ele)} m</td>
       <td>${segSlope > 0 ? '+' : ''}${segSlope.toFixed(1)}%</td>
       <td><span class="slope ${slopeCls[cls]}">${slopeNames[cls] || cls}</span></td>
       <td>${idx > 0 ? '+' + segDp : '—'}</td>
-      <td>${fc}%</td>
+      <td><b style="color:var(--acc2)">${Math.round(cumDplus)}</b> <span style="color:var(--mut);font-size:11px">/ ${c.dpPos}</span></td>
     </tr>`;
   }).join('');
 
@@ -1204,16 +1357,15 @@ function renderPassage() {
         <thead><tr>
           <th>Distance</th>
           <th>Heure de passage</th>
-          <th>Altitude</th>
           <th>Pente</th>
           <th>Terrain</th>
           <th>D+ seg.</th>
-          <th>% Perf.</th>
+          <th>Cumul D+</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
-    <div style="font-size:11px;color:var(--mut);margin-top:8px">% Perf. = performance relative (100% = début, 60-70% = fin de course)</div>
+    <div style="font-size:11px;color:var(--mut);margin-top:8px">Cumul D+ = dénivelé positif cumulé depuis le départ (sur D+ total ${c.dpPos}m)</div>
   </div>
   `;
 
@@ -1249,7 +1401,7 @@ function renderNutrition() {
           '<span class="nutr-badge" style="background:var(--surf2);color:var(--mut);border:1px solid var(--bdr)">Standard</span>'}
         ${e.warnRefill ? '<span class="nutr-badge nb-y">⚠️ Recharger flasques</span>' : ''}
       </div>
-      <div class="ne-body" style="font-weight:600">${e.items}${e.carbs ? ` <span style="color:var(--acc)">[${e.carbs}g]</span>` : ''}</div>
+      <div class="ne-body" style="font-weight:600">${e.items}${e.carbs ? ` <span style="color:var(--acc)">[${e.carbs}g</span>${e.sodium ? `<span style="color:var(--blue)"> · ${e.sodium}mg Na</span>` : ''}<span style="color:var(--acc)">]</span>` : ''}</div>
       ${e.action ? `<div class="ne-detail">${e.action}${e.eau_ml ? ` · 💧 boire ${e.eau_ml} ml/h` : ''}</div>` : (e.eau_ml ? `<div class="ne-detail">💧 boire ${e.eau_ml} ml/h</div>` : '')}
     </div>`;
   }).join('');
@@ -1602,10 +1754,10 @@ function exportPDFComplet() {
 
   const slopeNames = { flat:'Plat', 'up-s':'Montee', 'up-r':'Montee raide', 'dn-s':'Descente', 'dn-r':'Descente raide' };
   const rowH = 8;
-  const cols = [20,20,18,16,28,16,16];
+  const cols = [22,22,18,30,18,24];
   const colX = [0];
   cols.forEach((w, i) => colX.push(colX[i] + w));
-  const heads = ['Km','Passage','Altitude','Pente','Terrain','D+ seg','% Perf'];
+  const heads = ['Km','Passage','Pente','Terrain','D+ seg','Cumul D+'];
 
   // Header
   heads.forEach((h, i) => {
@@ -1613,29 +1765,23 @@ function exportPDFComplet() {
   });
   y += rowH + 1;
 
+  let pdfCumDplus = 0;
   displayed.forEach((p, ri) => {
-    const ratio = p.dist / totalDist;
-    const fc = Math.round(fatigueCoeff(ratio, config.niveau) * 100);
     const bg = ri % 2 === 0 ? DARK : [16,16,18];
     let segSlope = 0, segDp = 0;
-    if (ri > 0) { const st = pdfSegStats(displayed[ri-1], p); segSlope = st.slope; segDp = Math.round(st.dPos); }
+    if (ri > 0) { const st = pdfSegStats(displayed[ri-1], p); segSlope = st.slope; segDp = Math.round(st.dPos); pdfCumDplus += segDp; }
     const cls = classifySlope(segSlope);
-
-    let perfColor = GRN;
-    if (fc < 75) perfColor = WARN;
-    if (fc < 65) perfColor = RED;
 
     const rowData = [
       (p.dist/1000).toFixed(1)+'km',
       fmtTime(p.timeMins),
-      Math.round(p.ele)+'m',
       (segSlope>=0?'+':'')+segSlope.toFixed(1)+'%',
       slopeNames[cls] || cls,
       ri>0 ? '+'+segDp : '-',
-      fc+'%',
+      ri>0 ? Math.round(pdfCumDplus)+'m' : '0m',
     ];
     rowData.forEach((v, i) => {
-      cell(pad + colX[i], y, cols[i]-1, rowH, bg, i===6?perfColor:TXT, v, 7, i===6, 'center');
+      cell(pad + colX[i], y, cols[i]-1, rowH, bg, i===5?[255,107,53]:TXT, v, 7, i===5, 'center');
     });
     y += rowH;
     if (y > H - 20) { page(3); y = 24; y = sectionTitle(y, 'TEMPS DE PASSAGE (suite)');
@@ -1645,9 +1791,9 @@ function exportPDFComplet() {
   });
   y += 6;
 
-  // Fatigue note
+  // Note
   doc.setFont('helvetica','italic'); doc.setFontSize(7); doc.setTextColor(...MUT);
-  doc.text('% Perf. = coefficient de performance relatif (100% = début de course). Modèle fatigue : ' + config.niveau, pad, y);
+  doc.text('Cumul D+ = denivele positif cumule depuis le depart (total ' + c.dpPos + 'm). Modele fatigue : ' + config.niveau, pad, y);
 
   // ---- PAGE 3/4 : Nutrition ----
   let pageNum = 3;
@@ -2020,6 +2166,7 @@ function generer() {
     niveau,
     meteo: getRadio('rMeteo') || 'tempere',
     produits: selectedProducts.slice(),
+    saltyFood: getSaltyConfig(),
     tpsMin
   };
 
@@ -2093,6 +2240,7 @@ function resetApp() {
 // Init au chargement
 renderProductGrid();
 setCarbsMode('auto');
+setSalty(true);
 </script>
 </body>
 </html>
