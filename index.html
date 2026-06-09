@@ -339,6 +339,14 @@ tr:hover td{background:rgba(255,255,255,.02)}
       </div>
     </div>
     <div class="form-group full">
+      <label>Correction D+ (re-géocodage) <span style="color:var(--mut);font-weight:400">— ajuste le dénivelé sous-estimé du GPX</span></label>
+      <div style="display:flex;align-items:center;gap:14px;margin-top:4px">
+        <input type="range" id="fDCoef" min="0.8" max="2" step="0.01" value="1" oninput="updateDCoefReadout()" style="flex:1;accent-color:var(--acc)">
+        <span id="dCoefVal" style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--acc);min-width:56px;text-align:right">×1.00</span>
+      </div>
+      <div class="hint" id="dCoefHint">Importez un GPX pour comparer au D+ annoncé. ×1.00 = aucune correction.</div>
+    </div>
+    <div class="form-group full">
       <label>Nom de la course</label>
       <input type="text" id="fNomCourse" placeholder="ex: Trail des Crêtes 2026">
     </div>
@@ -479,6 +487,23 @@ let gpxData = null;      // points bruts {lat,lon,ele,dist}
 let courseData = null;   // données calculées de course
 let planData = null;     // plan nutrition complet
 let config = {};
+
+// Coefficient de correction D+ (re-géocodage) — défaut neutre 1.0
+function DCOEF() { return (config && config.dCoef) ? config.dCoef : 1; }
+
+// Met à jour l'affichage live du curseur de correction D+
+function updateDCoefReadout() {
+  const coef = parseFloat(document.getElementById('fDCoef').value) || 1;
+  document.getElementById('dCoefVal').textContent = '×' + coef.toFixed(2);
+  const hint = document.getElementById('dCoefHint');
+  if (gpxData && gpxData._realDpPos !== undefined) {
+    const brut = gpxData._realDpPos;
+    const corr = Math.round(brut * coef);
+    hint.innerHTML = `D+ brut GPX : <b>${brut} m</b> → D+ corrigé : <b style="color:var(--acc)">${corr} m</b>. Réglez le curseur pour coller au D+ annoncé de la course.`;
+  } else {
+    hint.textContent = 'Importez un GPX pour comparer au D+ annoncé. ×1.00 = aucune correction.';
+  }
+}
 
 // ============================================================
 // BASE DE PRODUITS — Precision Fuel & Hydration
@@ -861,6 +886,7 @@ function loadGPX(file) {
       document.getElementById('btnGenerer').disabled = false;
       document.getElementById('statusBadge').textContent = 'GPX chargé';
       document.getElementById('statusBadge').classList.add('active');
+      updateDCoefReadout();
 
     } catch(err) {
       alert('Erreur de lecture GPX : ' + err.message);
@@ -948,9 +974,11 @@ function computeCourse(tpsTotal, niveau) {
     return { ...p, timeMins: cumMins, segMins };
   });
 
-  // D+ / D- = valeurs réelles calculées sur la trace complète au parsing
-  const dpPos = pts._realDpPos !== undefined ? pts._realDpPos : 0;
-  const dpNeg = pts._realDpNeg !== undefined ? pts._realDpNeg : 0;
+  // D+ / D- = valeurs réelles calculées sur la trace complète au parsing,
+  // corrigées par le coefficient de re-géocodage (défaut ×1.0 = neutre)
+  const dc = DCOEF();
+  const dpPos = (pts._realDpPos !== undefined ? pts._realDpPos : 0) * dc;
+  const dpNeg = (pts._realDpNeg !== undefined ? pts._realDpNeg : 0) * dc;
 
   return {
     points: result,
@@ -1545,7 +1573,7 @@ function renderPassage() {
     if (idx > 0) {
       const st = segmentStats(displayed[idx-1], p);
       segSlope = st.slope;
-      segDp = Math.round(st.dPos);
+      segDp = Math.round(st.dPos * DCOEF());
       cumDplus += segDp;
     }
     const cls = classifySlope(segSlope);
@@ -2015,7 +2043,7 @@ function exportPDFComplet() {
   displayed.forEach((p, ri) => {
     const bg = ri % 2 === 0 ? DARK : [16,16,18];
     let segSlope = 0, segDp = 0;
-    if (ri > 0) { const st = pdfSegStats(displayed[ri-1], p); segSlope = st.slope; segDp = Math.round(st.dPos); pdfCumDplus += segDp; }
+    if (ri > 0) { const st = pdfSegStats(displayed[ri-1], p); segSlope = st.slope; segDp = Math.round(st.dPos * DCOEF()); pdfCumDplus += segDp; }
     const cls = classifySlope(segSlope);
 
     const rowData = [
@@ -2413,6 +2441,7 @@ function generer() {
     meteo: getRadio('rMeteo') || 'tempere',
     produits: selectedProducts.slice(),
     saltyFood: getSaltyConfig(),
+    dCoef: parseFloat(document.getElementById('fDCoef').value) || 1,
     tpsMin
   };
 
@@ -2468,6 +2497,8 @@ function resetApp() {
   document.getElementById('statusBadge').style.borderColor = '';
   document.getElementById('statusBadge').style.color = '';
   document.getElementById('gpxInput').value = '';
+  const dcEl = document.getElementById('fDCoef');
+  if (dcEl) { dcEl.value = 1; updateDCoefReadout(); }
   ['profilContent','passageContent','nutritionContent','exportContent'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
