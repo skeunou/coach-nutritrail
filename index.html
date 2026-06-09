@@ -27,7 +27,7 @@ body{background:var(--bg);color:var(--txt);font-family:'DM Sans',sans-serif;min-
 .badge.active{border-color:var(--acc);color:var(--acc)}
 
 /* TABS */
-.tabs{display:flex;gap:0;border-bottom:1px solid var(--bdr);background:var(--surf);padding:0 20px}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--bdr);background:var(--surf);padding:0 20px;position:sticky;top:0;z-index:99;overflow-x:auto;-webkit-overflow-scrolling:touch}
 .tab{padding:14px 20px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:var(--mut);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;transition:.2s;letter-spacing:.5px}
 .tab.active{color:var(--acc);border-bottom-color:var(--acc)}
 .tab:hover:not(.active){color:var(--txt)}
@@ -300,6 +300,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <button class="tab" data-tab="passage" onclick="showTab('passage')">🕐 Temps de Passage</button>
   <button class="tab" data-tab="nutrition" onclick="showTab('nutrition')">🥤 Nutrition</button>
   <button class="tab" data-tab="export" onclick="showTab('export')">📄 Export PDF</button>
+  <button class="tab" data-tab="faq" onclick="showTab('faq')">❓ FAQ</button>
 </div>
 
 <!-- ============================================================ CONFIG ============================================================ -->
@@ -505,6 +506,39 @@ tr:hover td{background:rgba(255,255,255,.02)}
   </div>
 </div>
 
+<div id="tab-faq" class="tab-content">
+  <div class="card">
+    <div class="card-title">💡 Besoins en glucides par heure</div>
+    <p style="font-size:13px;color:var(--txt);line-height:1.7;margin-top:8px">
+      <b style="color:var(--acc)">Débutant :</b> ~60 g / heure.<br>
+      <b style="color:var(--acc)">Confirmé :</b> 60 à 80 g / heure.<br>
+      <b style="color:var(--acc)">Expert / Élite :</b> 80 à 90 g+ / heure <span style="color:var(--mut)">(nécessite un entraînement digestif)</span>.
+    </p>
+  </div>
+  <div class="card">
+    <div class="card-title">🧂 Besoins en sodium (électrolytes) par heure</div>
+    <p style="font-size:13px;color:var(--txt);line-height:1.7;margin-top:8px">
+      <b style="color:var(--acc)">Conditions standards :</b> 500 à 700 mg / heure.<br>
+      <b style="color:var(--acc)">Conditions extrêmes (forte chaleur) :</b> jusqu'à 1000 mg / heure.
+    </p>
+  </div>
+  <div class="card">
+    <div class="card-title">💧 Hydratation & fréquence</div>
+    <p style="font-size:13px;color:var(--txt);line-height:1.7;margin-top:8px">
+      <b style="color:var(--acc)">Volume horaire (standard) :</b> ~500 ml / heure.<br>
+      <b style="color:var(--acc)">Volume horaire (chaleur) :</b> 700 à 850 ml / heure <span style="color:var(--mut)">(seuil max d'assimilation gastrique)</span>.<br>
+      <b style="color:var(--acc)">Fréquence :</b> boire toutes les <b>7 minutes</b> en petites gorgées pour lisser la vidange gastrique.
+    </p>
+  </div>
+  <div class="card">
+    <div class="card-title">🏃 Conseils stratégiques</div>
+    <p style="font-size:13px;color:var(--txt);line-height:1.7;margin-top:8px">
+      <b style="color:var(--acc)">Règle d'or :</b> ne jamais rien tester le jour de la course. Les protocoles &gt; 60 g de glucides/h doivent être validés à l'entraînement.<br>
+      <b style="color:var(--acc)">Gestion du goût :</b> alterner entre une flasque d'eau pure et une flasque de boisson énergétique pour éviter la saturation du goût sucré.
+    </p>
+  </div>
+</div>
+
 <script>
 // ============================================================
 // STATE
@@ -542,7 +576,7 @@ const CATALOG = [
   {id:"preci_pf_30_chew",brand:"Precision Fuel",name:"PF 30 Chew",type:"chew",carbs:30,sodium:0,caffeine:0,volume:0,fractions:[1,0.667,0.333],moment:["avant","pendant"]},
   {id:"preci_hydration_packets_pf_1500",brand:"Precision Fuel",name:"Hydration Packets (PF 1500)",type:"electro",carbs:0,sodium:750,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["avant","pendant"]},
   {id:"preci_hydration_packets_pf_500",brand:"Precision Fuel",name:"Hydration Packets (PF 500)",type:"electro",carbs:0,sodium:250,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["pendant"]},
-  {id:"preci_pf_90_drink_mix",brand:"Precision Fuel",name:"PF 90 Drink Mix",type:"iso",carbs:90,sodium:1000,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5,0.333],moment:["pendant"]},
+  {id:"preci_pf_60_drink_mix",brand:"Precision Fuel",name:"PF 60 Drink Mix",type:"iso",carbs:30,sodium:500,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5,0.333],moment:["pendant"]},
   {id:"ta_en_gel_energetique_citron",brand:"TA Energy",name:"Gel Énergétique Citron",type:"gel",carbs:33,sodium:50,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
   {id:"ta_en_gommes_energetiques",brand:"TA Energy",name:"Gommes Énergétiques",type:"chew",carbs:22,sodium:0,caffeine:0,volume:0,fractions:[1,0.667,0.333],moment:["pendant"]},
   {id:"ta_en_pastilles_electrolytes",brand:"TA Energy",name:"Pastilles Électrolytes",type:"electro",carbs:1,sodium:300,caffeine:0,volume:500,fractions:[1,0.75,0.667,0.5],moment:["pendant"]},
@@ -584,6 +618,8 @@ const CATALOG = [
   {id:"decat_boisson_de_recuperation_recup",brand:"Décathlon (Aptonia)",name:"Boisson de Récupération (Recup)",type:"recovery",carbs:21,sodium:200,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant","recup"]},
   {id:"preci_pf_90_gel_caffeine",brand:"Precision Fuel",name:"PF 90 Gel + Caffeine",type:"gel",carbs:90,sodium:0,caffeine:300,volume:0,fractions:[0.333],moment:["pendant","fin"]},
   {id:"preci_flow_gel_pf_30",brand:"Precision Fuel",name:"Flow Gel (PF 30)",type:"gel",carbs:30,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
+  {id:"ta_en_electrolyte_chew",brand:"TA Energy",name:"Electrolyte Chew (à croquer)",type:"electro",carbs:0,sodium:150,caffeine:0,volume:0,fractions:[1],moment:["pendant"]},
+  {id:"ta_en_gommes_energetiques_cafeine_cassis",brand:"TA Energy",name:"Gommes Énergétiques Caféine (Cassis)",type:"chew",carbs:22,sodium:100,caffeine:50,volume:0,fractions:[1,0.667,0.333],moment:["pendant"]},
   {id:"ta_en_gommes_energetiques_cafeine_cola",brand:"TA Energy",name:"Gommes Énergétiques Caféine (Cola)",type:"chew",carbs:22,sodium:0,caffeine:50,volume:0,fractions:[1,0.667,0.333],moment:["pendant"]},
   {id:"ta_en_gommes_energetiques_cafeine_cafe",brand:"TA Energy",name:"Gommes Énergétiques Caféine (Café)",type:"chew",carbs:22,sodium:0,caffeine:50,volume:0,fractions:[1,0.667,0.333],moment:["avant","pendant"]},
   {id:"ta_en_caffeine_shot",brand:"TA Energy",name:"Caffeine Shot",type:"shot",carbs:10,sodium:0,caffeine:200,volume:60,fractions:[1],moment:["fin"]},
@@ -595,7 +631,7 @@ const CATALOG = [
   {id:"melto_gel_energetique_ultra_endurance_mi",brand:"Meltonic",name:"Gel Énergétique Ultra Endurance (Miel/Guarana)",type:"gel",carbs:15,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
   {id:"baouw_puree_biologique_framboise_fraise_",brand:"Baouw",name:"Purée Biologique Framboise-Fraise-Hibiscus",type:"puree",carbs:18,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
   {id:"baouw_barre_nutritionnelle_banane_cacao_",brand:"Baouw",name:"Barre Nutritionnelle Banane-Cacao-Cacahuète",type:"bar",carbs:12,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]},
-  {id:"gener_compote_de_fruits",brand:"Générique",name:"Compote de fruits",type:"puree",carbs:20,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]}
+  {id:"gener_compote_de_fruits",brand:"Générique",name:"Compote de fruits",type:"puree",carbs:9,sodium:0,caffeine:0,volume:0,fractions:[1,0.5],moment:["pendant"]}
 ];
 
 // URL de la base produits publiée (Google Sheet CSV) — rechargement futur côté navigateur
@@ -605,7 +641,7 @@ const CATALOG_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRj8gpf
 let PRODUCTS = CATALOG;
 
 // Placard par défaut : un set Precision Fuel cohérent (gel, gel90, chew, électrolytes)
-let selectedProducts = ['preci_pf_30_gel','preci_pf_90_gel','preci_pf_30_chew','preci_pf_90_drink_mix','preci_hydration_packets_pf_1500'];
+let selectedProducts = ['preci_pf_30_gel','preci_pf_90_gel','preci_pf_30_chew','preci_pf_60_drink_mix','preci_hydration_packets_pf_1500'];
 
 // ----- MON PLACARD -----
 const TYPE_LABELS = { gel:'Gel', chew:'Gomme', bar:'Barre', iso:'Boisson', electro:'Électrolytes',
@@ -801,8 +837,15 @@ function haversine(a, b) {
 // ============================================================
 // GPX PARSING
 // ============================================================
-// Init : vérifier si un plan édité est disponible
-window.addEventListener('load', function() { checkRestoreBanner(); });
+// Init : vérifier si un plan édité est disponible + caler les tabs sticky sous le header
+window.addEventListener('load', function() {
+  checkRestoreBanner();
+  const hd = document.querySelector('.header'), tb = document.querySelector('.tabs');
+  if (hd && tb) {
+    const setTop = () => { tb.style.top = hd.offsetHeight + 'px'; };
+    setTop(); window.addEventListener('resize', setTop);
+  }
+});
 function handleDrop(e) {
   e.preventDefault();
   document.getElementById('dropZone').classList.remove('drag');
@@ -1030,7 +1073,7 @@ function buildNutritionPlan(course, cfg) {
   const totalHours = totalMins / 60;
   const totalCarbs = totalHours * carbsH;
 
-  // Hydratation : règle d'or = boire toutes les 10 min. Volume modulé météo.
+  // Hydratation : règle d'or = boire toutes les 7 min (lissage vidange gastrique). Volume modulé météo.
   const hydratFactor = cfg.meteo === 'chaud' ? 1.4 : cfg.meteo === 'froid' ? 0.8 : 1.0;
   const mlPerHour = Math.round(500 * hydratFactor);
 
@@ -1041,7 +1084,7 @@ function buildNutritionPlan(course, cfg) {
   const sweets   = sel.filter(p => ['gel','chew','bar','puree'].includes(p.type)); // solides sucrés
   const caffProd = sel.filter(p => (p.caffeine||0) > 0).sort((a,b)=>b.caffeine-a.caffeine)[0] || null;
   const drink    = isos[0] || null;
-  const electro  = electros[0] || null;
+  const electro  = electros.filter(p => (p.volume||0) > 0)[0] || null; // chews (volume 0) exclus de la complétion hydrique
 
   // Libellé d'une fraction lisible (1, 3/4, 2/3, 1/2, 1/3)
   function fracLabel(f) {
@@ -1937,7 +1980,7 @@ function renderNutrition() {
   let alertsHtml = '';
   // Règles d'or toujours rappelées
   alertsHtml += `<div class="alert-box info"><div class="ab-title">⏱️ Règles d'or</div>
-    <div class="ab-body"><b>Boire toutes les 10 min</b> (petites gorgées) · <b>Manger toutes les 30 min</b>. Le plan ci-dessous résume les apports heure par heure.</div></div>`;
+    <div class="ab-body"><b>Boire toutes les 7 min</b> (petites gorgées) · <b>Manger toutes les 30 min</b>. Le plan ci-dessous résume les apports heure par heure.</div></div>`;
   if (config.meteo === 'chaud') {
     alertsHtml += `<div class="alert-box warn"><div class="ab-title">☀️ Météo chaude — Vigilance hyponatrémie</div>
     <div class="ab-body">Ne pas boire que de l'eau. Ajouter systématiquement électrolytes/sel après 1h. Objectif minimum : 600 ml/h.</div></div>`;
@@ -2486,7 +2529,7 @@ function exportPDFMemo() {
     doc.setDrawColor(...LINE); doc.setLineWidth(0.3);
     doc.setFillColor(...BAND); doc.rect(offsetX+6, y, FW-12, 9, 'FD');
     doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...INK);
-    doc.text('REGLES D\'OR :  Boire / 10 min   ·   Manger / 30 min', offsetX+FW/2, y+5.8, {align:'center'});
+    doc.text('REGLES D\'OR :  Boire / 7 min   ·   Manger / 30 min', offsetX+FW/2, y+5.8, {align:'center'});
     y += 14;
 
     // Tableau horaire
@@ -2688,7 +2731,7 @@ function generer() {
     carbsH,                // objectif glucides g/h (métrique principale)
     carbsAuto,
     kcalH,                 // dérivé (info secondaire)
-    hydratMins: 10,  // règle d'or : boire toutes les 10 min
+    hydratMins: 7,  // règle d'or : boire toutes les 7 min
     gluPct: 80,
     protPct: 10,
     digest: getRadio('rDigest') || 'normale',
