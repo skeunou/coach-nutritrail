@@ -2011,7 +2011,7 @@ function exportPDFComplet() {
   const TXT = [20,20,25], MUT = [100,100,110];
   const GRN = [22,140,75], WARN = [190,110,0], RED = [190,30,30];
   const BDR = [200,200,210];
-  const ALT = [248,248,252]; // ligne alternée tableau
+  const ALT = [238,238,240]; // ligne alternée tableau (gris clair, comme le A5)
 
   function page(num) {
     if (num > 1) doc.addPage();
@@ -2311,7 +2311,7 @@ function exportPDFComplet() {
     const rowData = [
       fmtTime(e.timeMins),
       e.km.toFixed(1),
-      e.action.slice(0, 58),
+      (e.items || e.action || '').slice(0, 60),
       (e.carbs||0)+'g',
       (e.eau_ml||0)+'ml',
     ];
