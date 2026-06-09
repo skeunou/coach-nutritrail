@@ -983,32 +983,34 @@ function classifySlope(s) {
 }
 
 function slopeCoeff(s) {
-  // Coefficient de vitesse relatif selon la pente (1 = allure PLAT, l'optimum).
-  // CALIBRÉ sur données réelles Saint-Jacques 100K (fichier athlète Laurent, 11h/81km) :
-  //   Le plat est le plus rapide. En descente l'athlète NE gagne PAS de vitesse
-  //   (terrain technique/cassant) : coeff < 1. En montée, ralentissement marqué,
-  //   passage en marche au-delà de ~8%.
-  //   Mesuré (normalisé /plat) : desc.raide 0.83 | desc 0.87 | desc.douce 0.84
-  //   plat 1.00 | mont.douce 0.75 | montée 0.69 | mont.raide 0.60
+  // Coefficient de vitesse relatif selon la pente (1 = allure PLAT).
+  // CALIBRÉ sur données GPS réelles collectées (Strava, ~3000 points, 3 sorties trail
+  // variées : UBS 43km/1983D+, Coursières 24K/939D+, séance côtes ×5/1040D+).
+  // Méthode : vitesse médiane par tranche de pente, normalisée sur le plat (réf 10.9 km/h).
+  //   Montées : déclin monotone régulier mesuré 0.92→0.82→0.73→0.63→0.48.
+  //   Descentes : l'athlète ACCÉLÈRE réellement (mesuré jusqu'à 1.19× sur -8/-12%),
+  //   sauf descente très douce où il lève le pied (0.99). Optimum descente ~-8/-12%.
+  //   Le bridage sur effort long est géré séparément par la courbe de fatigue log,
+  //   pas ici (pas de double comptage).
   // s = pente en % (1% = 10 m/km)
   // Montées
-  if (s > 15) return 0.50;   // mur, marche lente
-  if (s > 12) return 0.55;
-  if (s > 9)  return 0.60;   // mont. raide -> rando
-  if (s > 6)  return 0.66;
-  if (s > 4)  return 0.69;   // montée
-  if (s > 2.5) return 0.74;
-  if (s > 1.5) return 0.78;  // montée douce
-  if (s > 1)  return 0.88;
-  // Plat (optimum de vitesse)
+  if (s > 15) return 0.48;   // mur, marche
+  if (s > 12) return 0.63;
+  if (s > 9)  return 0.73;   // mont. raide
+  if (s > 6)  return 0.82;
+  if (s > 4)  return 0.92;   // montée modérée
+  if (s > 2.5) return 0.92;
+  if (s > 1.5) return 0.92;  // montée douce
+  if (s > 1)  return 1.12;   // faux-plat montant (relance)
+  // Plat
   if (s > -1) return 1.00;
-  // Descentes (l'athlète ne gagne pas de vitesse — terrain technique)
-  if (s > -1.5) return 0.94;
-  if (s > -4)  return 0.87;  // descente douce
-  if (s > -8)  return 0.88;  // descente
-  if (s > -12) return 0.85;
-  if (s > -15) return 0.83;  // descente raide -> frein genoux
-  return 0.78;               // très raide -> protection genoux
+  // Descentes (gain de vitesse réel mesuré)
+  if (s > -1.5) return 1.17;
+  if (s > -4)  return 0.99;  // desc. douce — l'athlète lève le pied
+  if (s > -8)  return 1.13;  // descente roulante
+  if (s > -12) return 1.19;  // optimum descente
+  if (s > -15) return 1.15;  // desc. raide
+  return 1.10;               // très raide
 }
 
 // ===== MODÈLE DE FATIGUE v3 (logarithmique) =====
@@ -1064,7 +1066,7 @@ function computeCourse(tpsTotal, alpha) {
   const totalMins = tpsTotal;
 
   // Calcul poids relatif de chaque segment (effort normalisé)
-  // slopeCoeff = calibrage terrain LOCAL (St-Jacques) · fatigueCoeff = courbe log v3
+  // slopeCoeff = calibrage terrain sur données GPS réelles collectées · fatigueCoeff = courbe log v3
   let totalWeight = 0;
   const weights = pts.map((p, i) => {
     if (i === 0) return 0;
