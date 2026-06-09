@@ -249,6 +249,23 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .pantry-footer .btn{flex:1}
 .pantry-empty{text-align:center;color:var(--mut);font-size:13px;padding:30px}
 
+/* ÉDITION PLAN NUTRITION */
+.edit-btn{background:none;border:1px solid var(--bdr);border-radius:6px;color:var(--mut);font-size:13px;padding:2px 8px;cursor:pointer;transition:border-color .2s,color .2s;margin-left:auto;flex-shrink:0}
+.edit-btn:active{border-color:var(--acc);color:var(--acc)}
+.nutr-event._edited .ne-header::after{content:'✎ édité';font-size:10px;color:var(--acc);opacity:.7;margin-left:4px}
+#editOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:2000;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#editOverlay.show{display:flex}
+#editBox{background:var(--surf);border:1px solid var(--acc);border-radius:12px;width:100%;max-width:480px;padding:20px;margin-top:24px}
+.edt-lbl{font-size:11px;color:var(--mut);display:block;margin-bottom:4px;margin-top:10px}
+.edt-row{display:flex;gap:8px;align-items:stretch}
+.edt-sel{background:var(--surf2);color:var(--txt);border:1px solid var(--bdr);border-radius:6px;padding:8px 6px;font-size:13px;min-width:0}
+.edt-sel.wide{flex:1}
+.edt-sel.frac{width:84px;flex-shrink:0}
+.edt-note{width:100%;background:var(--surf2);color:var(--txt);border:1px solid var(--bdr);border-radius:6px;padding:8px;font-size:13px;box-sizing:border-box}
+#editPreview{background:var(--surf2);border-radius:6px;padding:10px;font-size:14px;margin-top:12px;min-height:36px}
+#restoreBanner{display:none;background:var(--surf);border:1px solid var(--acc);border-radius:8px;padding:12px 14px;margin-bottom:16px;flex-wrap:wrap;gap:8px;align-items:center}
+#restoreBanner.show{display:flex}
+
 /* CHECKLIST */
 .checklist{list-style:none;margin-top:12px}
 .checklist li{padding:10px 0;border-bottom:1px solid rgba(42,42,48,.6);display:flex;align-items:center;gap:10px;font-size:13px}
@@ -377,6 +394,13 @@ tr:hover td{background:rgba(255,255,255,.02)}
   </div>
 
   <div class="btn-row">
+    <!-- Bannière restauration plan édité -->
+    <div id="restoreBanner">
+      <span id="restoreInfo" style="flex:1;font-size:13px;color:var(--txt)"></span>
+      <button onclick="restoreSavedPlan()" style="background:var(--acc);color:#000;border:none;border-radius:6px;padding:8px 14px;font-family:'Bebas Neue',sans-serif;font-size:16px;cursor:pointer;letter-spacing:.5px">REPRENDRE</button>
+      <button onclick="dismissRestoreBanner()" style="background:none;border:1px solid var(--bdr);border-radius:6px;padding:8px 10px;color:var(--mut);font-size:12px;cursor:pointer">✕</button>
+    </div>
+
     <button class="btn btn-primary" id="btnGenerer" onclick="generer()" disabled>
       ⚡ Générer le plan
     </button>
@@ -775,6 +799,8 @@ function haversine(a, b) {
 // ============================================================
 // GPX PARSING
 // ============================================================
+// Init : vérifier si un plan édité est disponible
+window.addEventListener('load', function() { checkRestoreBanner(); });
 function handleDrop(e) {
   e.preventDefault();
   document.getElementById('dropZone').classList.remove('drag');
@@ -1649,6 +1675,169 @@ function renderPassage() {
 // ============================================================
 // RENDER NUTRITION
 // ============================================================
+// ============================================================
+// PERSISTANCE DU PLAN (localStorage)
+// ============================================================
+const PLAN_STORE_KEY = 'nutritrail:plan:v2';
+
+function savePlanToStorage() {
+  if (!planData || !courseData) return;
+  try {
+    localStorage.setItem(PLAN_STORE_KEY, JSON.stringify({
+      savedAt: Date.now(),
+      nomCourse: document.getElementById('fNomCourse').value || '',
+      plan: planData,
+      courseSnap: {
+        totalDist: courseData.totalDist, totalMins: courseData.totalMins,
+        dpPos: courseData.dpPos, dpNeg: courseData.dpNeg,
+        eleMin: courseData.eleMin, eleMax: courseData.eleMax
+      }
+    }));
+  } catch(e) { console.warn('savePlan', e); }
+}
+
+function checkRestoreBanner() {
+  try {
+    const raw = localStorage.getItem(PLAN_STORE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (!saved || !saved.plan || !saved.plan.events) return;
+    const ageMin = Math.round((Date.now() - saved.savedAt) / 60000);
+    const ageStr = ageMin < 60 ? ageMin + ' min' : Math.round(ageMin/60) + 'h';
+    const banner = document.getElementById('restoreBanner');
+    document.getElementById('restoreInfo').textContent =
+      '💾 Plan "' + (saved.nomCourse || 'sans nom') + '" — il y a ' + ageStr;
+    banner.classList.add('show');
+  } catch(e) {}
+}
+
+function restoreSavedPlan() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PLAN_STORE_KEY));
+    if (!saved) return;
+    planData = saved.plan;
+    if (!courseData && saved.courseSnap) {
+      courseData = Object.assign({points:[]}, saved.courseSnap);
+    }
+    document.getElementById('restoreBanner').classList.remove('show');
+    renderNutrition();
+    showTab('nutrition');
+  } catch(e) { alert('Erreur restauration : ' + e.message); }
+}
+
+function dismissRestoreBanner() {
+  localStorage.removeItem(PLAN_STORE_KEY);
+  document.getElementById('restoreBanner').classList.remove('show');
+}
+
+// ============================================================
+// ÉDITION DES HEURES DU PLAN
+// ============================================================
+let _editIdx = null;
+const FRAC_LBL = {1:'1 entier', 0.75:'¾', 0.667:'⅔', 0.5:'½', 0.333:'⅓', 0.25:'¼'};
+
+function editHour(idx) {
+  _editIdx = idx;
+  const e = planData.events[idx];
+  document.getElementById('editTitle').textContent = e.hour + 'h — env. km ' + (e.km ? e.km.toFixed(0) : '?');
+  document.getElementById('editCurrent').textContent = 'Actuel : ' + e.items;
+  document.getElementById('eNote').value = e.action || '';
+  document.getElementById('eSalty').value = '0';
+
+  const selProds = (config.produits || []).map(id => PRODUCTS.find(p => p.id === id)).filter(Boolean);
+  const solids = selProds.filter(p => !['iso','electro'].includes(p.type));
+  const liquids = selProds.filter(p => ['iso','electro'].includes(p.type));
+
+  document.getElementById('eSolid').innerHTML = '<option value="">— aucun —</option>' +
+    solids.map(p => '<option value="' + p.id + '">' + p.name + ' (' + p.carbs + 'g' + (p.sodium?' · '+p.sodium+'mg Na':'') + ')</option>').join('');
+  document.getElementById('eLiq').innerHTML = '<option value="eau">Eau pure</option>' +
+    liquids.map(p => '<option value="' + p.id + '">' + p.name + ' (' + p.carbs + 'g G · ' + p.sodium + 'mg Na)</option>').join('');
+
+  updateSolidFracs(); updateLiqFracs(); previewEdit();
+  document.getElementById('editOverlay').classList.add('show');
+}
+
+function updateSolidFracs() {
+  const id = document.getElementById('eSolid').value;
+  const prod = id ? PRODUCTS.find(p => p.id === id) : null;
+  const fracs = prod ? prod.fractions : [1];
+  document.getElementById('eSolidFrac').innerHTML = fracs.map(f =>
+    '<option value="' + f + '">' + (FRAC_LBL[f] || '×'+f) + '</option>').join('');
+}
+
+function updateLiqFracs() {
+  const id = document.getElementById('eLiq').value;
+  const prod = id && id !== 'eau' ? PRODUCTS.find(p => p.id === id) : null;
+  const fracs = prod ? prod.fractions : [1, 0.75, 0.5];
+  document.getElementById('eLiqFrac').innerHTML = fracs.map(f =>
+    '<option value="' + f + '">' + (FRAC_LBL[f] || '×'+f) + '</option>').join('');
+}
+
+function previewEdit() {
+  const solidId = document.getElementById('eSolid').value;
+  const solidFrac = parseFloat(document.getElementById('eSolidFrac').value) || 1;
+  const liqId = document.getElementById('eLiq').value;
+  const liqFrac = parseFloat(document.getElementById('eLiqFrac').value) || 1;
+  const salty = parseInt(document.getElementById('eSalty').value) || 0;
+  const solid = solidId ? PRODUCTS.find(p => p.id === solidId) : null;
+  const liq = liqId && liqId !== 'eau' ? PRODUCTS.find(p => p.id === liqId) : null;
+  let carbs = 0, sodium = 0, vol = 0;
+  if (solid) { carbs += solid.carbs * solidFrac; sodium += solid.sodium * solidFrac; }
+  if (salty) { carbs += 18; sodium += 300; }
+  if (liq) { carbs += liq.carbs * liqFrac; sodium += liq.sodium * liqFrac; vol = liq.volume * liqFrac; }
+  document.getElementById('editPreview').innerHTML =
+    '<span style="color:var(--acc);font-weight:600">' + Math.round(carbs) + 'g glucides</span>' +
+    ' · <span style="color:var(--blue)">' + Math.round(sodium) + 'mg Na</span>' +
+    (vol ? ' · <span style="color:var(--mut)">💧 ' + Math.round(vol) + ' ml</span>' : '');
+}
+
+function confirmEdit() {
+  const solidId = document.getElementById('eSolid').value;
+  const solidFrac = parseFloat(document.getElementById('eSolidFrac').value) || 1;
+  const liqId = document.getElementById('eLiq').value;
+  const liqFrac = parseFloat(document.getElementById('eLiqFrac').value) || 1;
+  const salty = parseInt(document.getElementById('eSalty').value) || 0;
+  const note = document.getElementById('eNote').value.trim();
+  const solid = solidId ? PRODUCTS.find(p => p.id === solidId) : null;
+  const liq = liqId && liqId !== 'eau' ? PRODUCTS.find(p => p.id === liqId) : null;
+
+  const e = planData.events[_editIdx];
+  const parts = []; let carbs = 0, sodium = 0, eauMl = e.eau_ml || 0;
+
+  if (solid) {
+    const fl = FRAC_LBL[solidFrac]; const sfx = (fl && fl !== '1 entier') ? ' ('+fl+')' : '';
+    parts.push(solid.name + sfx);
+    carbs += solid.carbs * solidFrac; sodium += solid.sodium * solidFrac;
+  }
+  if (salty) { parts.push('Option salée'); carbs += 18; sodium += 300; }
+  if (liq) {
+    const fl = FRAC_LBL[liqFrac]; const sfx = (fl && fl !== '1 entier') ? ' ('+fl+')' : '';
+    parts.push(liq.name + sfx + ' — flasque');
+    carbs += liq.carbs * liqFrac; sodium += liq.sodium * liqFrac;
+    eauMl = Math.round(liq.volume * liqFrac);
+  } else if (parts.length === 0) {
+    parts.push('Eau pure');
+  }
+
+  e.items = parts.join(' + ');
+  e.carbs = Math.round(carbs); e.sodium = Math.round(sodium); e.eau_ml = eauMl;
+  e.action = note; e._edited = true;
+
+  closeEditModal();
+  savePlanToStorage();
+  renderNutrition();
+
+  // Recalcul des totaux dans l'onglet
+  const raceEv = planData.events.filter(ev => ev.type === 'hour');
+  planData.totalCarbsPlan = raceEv.reduce((s,ev) => s+(ev.carbs||0), 0);
+  planData.avgCarbsH = planData.nbHours > 0 ? Math.round(planData.totalCarbsPlan / planData.nbHours) : 0;
+}
+
+function closeEditModal() {
+  document.getElementById('editOverlay').classList.remove('show');
+  _editIdx = null;
+}
+
 function renderNutrition() {
   const plan = planData;
   const events = plan.events;
@@ -1657,15 +1846,19 @@ function renderNutrition() {
     .filter(e => e.timeMins >= 0 && e.timeMins <= courseData.totalMins)
     .reduce((s, e) => s + (e.carbs || 0), 0);
 
-  let eventsHtml = events.map(e => {
+  let eventsHtml = events.map((e, idx) => {
     let cls = '';
     if (e.priority === 'prio') cls = 'prio';
     else if (e.priority === 'warn') cls = 'warn';
     else if (e.priority === 'alert') cls = 'alert';
+    if (e._edited) cls += ' _edited';
 
     const isPrePost = e.type === 'prerace' || e.type === 'postrace';
+    const editBtn = !isPrePost
+      ? `<button class="edit-btn" onclick="editHour(${idx})">✏️</button>`
+      : '';
 
-    return `<div class="nutr-event ${cls}">
+    return `<div class="nutr-event ${cls}" data-hidx="${idx}">
       <div class="ne-header">
         <span class="ne-time">${isPrePost ? e.label.split('(')[0].trim() : e.hour + 'h'}</span>
         ${!isPrePost ? `<span class="ne-km">env. km ${e.km.toFixed(0)}</span>` : ''}
@@ -1674,6 +1867,7 @@ function renderNutrition() {
           e.priority === 'alert' ? '<span class="nutr-badge nb-r">🔴 Critique</span>' :
           '<span class="nutr-badge" style="background:var(--surf2);color:var(--mut);border:1px solid var(--bdr)">Standard</span>'}
         ${e.warnRefill ? '<span class="nutr-badge nb-y">⚠️ Recharger flasques</span>' : ''}
+        ${editBtn}
       </div>
       <div class="ne-body" style="font-weight:600">${e.items}${e.carbs ? ` <span style="color:var(--acc)">[${e.carbs}g</span>${e.sodium ? `<span style="color:var(--blue)"> · ${e.sodium}mg Na</span>` : ''}<span style="color:var(--acc)">]</span>` : ''}</div>
       ${e.action ? `<div class="ne-detail">${e.action}${e.eau_ml ? ` · 💧 boire ${e.eau_ml} ml/h` : ''}</div>` : (e.eau_ml ? `<div class="ne-detail">💧 boire ${e.eau_ml} ml/h</div>` : '')}
@@ -2463,6 +2657,7 @@ function generer() {
     try {
       courseData = computeCourse(tpsMin, config.niveau);
       planData = buildNutritionPlan(courseData, config);
+      savePlanToStorage();
 
       renderProfil();
       renderPassage();
@@ -2520,5 +2715,41 @@ renderProductGrid();
 setCarbsMode('auto');
 setSalty(true);
 </script>
+<!-- ===== MODAL ÉDITION HEURE NUTRITION ===== -->
+<div id="editOverlay" onclick="if(event.target===this)closeEditModal()">
+  <div id="editBox">
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--acc);letter-spacing:1px" id="editTitle">Modifier heure</div>
+    <div style="font-size:11px;color:var(--mut);margin-bottom:14px;margin-top:2px" id="editCurrent"></div>
+
+    <label class="edt-lbl" style="margin-top:0">Solide / semi-solide</label>
+    <div class="edt-row">
+      <select id="eSolid" class="edt-sel wide" onchange="updateSolidFracs();previewEdit()"></select>
+      <select id="eSolidFrac" class="edt-sel frac" onchange="previewEdit()"></select>
+    </div>
+
+    <label class="edt-lbl">Option salée</label>
+    <select id="eSalty" class="edt-sel wide" onchange="previewEdit()">
+      <option value="0">— aucune —</option>
+      <option value="1">Option salée générique (18g G · 300mg Na)</option>
+    </select>
+
+    <label class="edt-lbl">Liquide (flasque ISO / électrolytes)</label>
+    <div class="edt-row">
+      <select id="eLiq" class="edt-sel wide" onchange="updateLiqFracs();previewEdit()"></select>
+      <select id="eLiqFrac" class="edt-sel frac" onchange="previewEdit()"></select>
+    </div>
+
+    <div id="editPreview">—</div>
+
+    <label class="edt-lbl">Note / contexte (optionnel)</label>
+    <input id="eNote" type="text" class="edt-note" placeholder="ex : descente — bonne fenêtre digestive">
+
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button onclick="confirmEdit()" style="flex:1;background:var(--acc);color:#000;font-family:'Bebas Neue',sans-serif;font-size:20px;padding:13px;border:none;border-radius:8px;cursor:pointer;letter-spacing:1px">VALIDER</button>
+      <button onclick="closeEditModal()" style="flex:1;background:var(--surf2);color:var(--txt);font-family:'Bebas Neue',sans-serif;font-size:20px;padding:13px;border:1px solid var(--bdr);border-radius:8px;cursor:pointer;letter-spacing:1px">ANNULER</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
