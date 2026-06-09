@@ -1812,11 +1812,12 @@ function exportPDFComplet() {
   const W = 210, H = 297;
   const pad = 14;
 
-  // Colors
-  const DARK = [13,13,15], SURF = [20,20,22], ACC = [232,255,71], ACC_DARK = [180,200,40];
-  const TXT = [240,240,240], MUT = [107,107,120];
-  const GRN = [74,222,128], WARN = [255,149,0], RED = [248,113,113];
-  const BDR = [42,42,48];
+  // ===== PALETTE IMPRESSION : FOND BLANC, ÉCONOMIE D'ENCRE =====
+  const DARK = [255,255,255], SURF = [240,242,245], ACC = [180,70,0], ACC_DARK = [140,50,0];
+  const TXT = [20,20,25], MUT = [100,100,110];
+  const GRN = [22,140,75], WARN = [190,110,0], RED = [190,30,30];
+  const BDR = [200,200,210];
+  const ALT = [248,248,252]; // ligne alternée tableau
 
   function page(num) {
     if (num > 1) doc.addPage();
@@ -1917,7 +1918,7 @@ function exportPDFComplet() {
     const rowY = y + Math.floor(i / 3) * 12;
     doc.setFillColor(...SURF);
     doc.rect(x, rowY, piW - 2, 10, 'F');
-    doc.setDrawColor(50,50,60);
+    doc.setDrawColor(...BDR);
     doc.setLineWidth(0.3);
     doc.rect(x, rowY, 2, 10, 'F');
     doc.setFillColor(...ACC_DARK);
@@ -1964,7 +1965,7 @@ function exportPDFComplet() {
         const qty = inv[name];
         const carbs = prod ? prod.carbs * qty : 0;
         const na = prod ? prod.sodium * qty : 0;
-        const bg = ri % 2 === 0 ? DARK : [16,16,18];
+        const bg = ri % 2 === 0 ? DARK : ALT;
         [name, qty+'×', carbs+'g', na?na+'mg':'-'].forEach((v,i) => cell(pad+cx[i], y, cw[i]-1, 7, bg, TXT, v, 7));
         y += 7;
       });
@@ -2041,7 +2042,7 @@ function exportPDFComplet() {
 
   let pdfCumDplus = 0;
   displayed.forEach((p, ri) => {
-    const bg = ri % 2 === 0 ? DARK : [16,16,18];
+    const bg = ri % 2 === 0 ? DARK : ALT;
     let segSlope = 0, segDp = 0;
     if (ri > 0) { const st = pdfSegStats(displayed[ri-1], p); segSlope = st.slope; segDp = Math.round(st.dPos * DCOEF()); pdfCumDplus += segDp; }
     const cls = classifySlope(segSlope);
@@ -2055,7 +2056,7 @@ function exportPDFComplet() {
       ri>0 ? Math.round(pdfCumDplus)+'m' : '0m',
     ];
     rowData.forEach((v, i) => {
-      cell(pad + colX[i], y, cols[i]-1, rowH, bg, i===5?[255,107,53]:TXT, v, 7, i===5, 'center');
+      cell(pad + colX[i], y, cols[i]-1, rowH, bg, i===5?[200,70,0]:TXT, v, 7, i===5, 'center');
     });
     y += rowH;
     if (y > H - 20) { page(3); y = 24; y = sectionTitle(y, 'TEMPS DE PASSAGE (suite)');
@@ -2106,10 +2107,10 @@ function exportPDFComplet() {
 
   plan.events.forEach((e, ri) => {
     if (e.timeMins < 0 || e.timeMins > c.totalMins) return;
-    const bg = e.priority === 'prio' ? [10,25,15] :
-               e.priority === 'warn' ? [25,18,5] :
-               e.priority === 'alert' ? [28,10,10] :
-               ri % 2 === 0 ? DARK : [16,16,18];
+    const bg = e.priority === 'prio' ? [220,248,228] :
+               e.priority === 'warn' ? [252,235,205] :
+               e.priority === 'alert' ? [252,220,220] :
+               ri % 2 === 0 ? DARK : ALT;
     const txtC = e.priority === 'prio' ? GRN :
                  e.priority === 'warn' ? WARN :
                  e.priority === 'alert' ? RED : TXT;
