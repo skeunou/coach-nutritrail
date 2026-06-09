@@ -261,6 +261,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .edt-sel{background:var(--surf2);color:var(--txt);border:1px solid var(--bdr);border-radius:6px;padding:8px 6px;font-size:13px;min-width:0}
 .edt-sel.wide{flex:1}
 .edt-sel.frac{width:84px;flex-shrink:0}
+.edt-del{flex-shrink:0;width:38px;background:var(--surf2);color:var(--red);border:1px solid var(--bdr);border-radius:6px;font-size:14px;cursor:pointer}
+.edt-del:active{border-color:var(--red)}
 .edt-note{width:100%;background:var(--surf2);color:var(--txt);border:1px solid var(--bdr);border-radius:6px;padding:8px;font-size:13px;box-sizing:border-box}
 #editPreview{background:var(--surf2);border-radius:6px;padding:10px;font-size:14px;margin-top:12px;min-height:36px}
 #restoreBanner{display:none;background:var(--surf);border:1px solid var(--acc);border-radius:8px;padding:12px 14px;margin-bottom:16px;flex-wrap:wrap;gap:8px;align-items:center}
@@ -1101,7 +1103,7 @@ function buildNutritionPlan(course, cfg) {
     if (preferCaffeine && caffProd && ['gel','chew','bar'].includes(caffProd.type)) {
       const f = caffProd.fractions.includes(0.5) && caffProd.carbs>40 ? 0.5 : 1;
       addInv(fracKey(caffProd,f), 1);
-      return { label: fracText(caffProd,f), carbs: caffProd.carbs*f, caf:true };
+      return { label: fracText(caffProd,f), carbs: caffProd.carbs*f, caf:true, prodId: caffProd.id, frac: f };
     }
     let tries = 0;
     while (tries < sweets.length * 2) {
@@ -1110,17 +1112,17 @@ function buildNutritionPlan(course, cfg) {
       const mn = Math.min(...g.fractions);
       // Gel XL : servir 1 portion (la plus petite fraction) s'il en reste
       if (mn <= 0.4) {
-        if (xlState[g.id] > 0) { xlState[g.id]--; addInv(fracKey(g,mn),1); return { label: fracText(g,mn), carbs: g.carbs*mn }; }
+        if (xlState[g.id] > 0) { xlState[g.id]--; addInv(fracKey(g,mn),1); return { label: fracText(g,mn), carbs: g.carbs*mn, prodId: g.id, frac: mn }; }
         else continue;
       }
       // Produit standard : viser ~30g via une fraction dispo
       const f = pickFractionForTarget(g, 30);
       addInv(fracKey(g,f), 1);
-      return { label: fracText(g,f), carbs: g.carbs*f };
+      return { label: fracText(g,f), carbs: g.carbs*f, prodId: g.id, frac: f };
     }
     const g0 = sweets[0]; const f0 = pickFractionForTarget(g0, 30);
     addInv(fracKey(g0,f0),1);
-    return { label: fracText(g0,f0), carbs: g0.carbs*f0 };
+    return { label: fracText(g0,f0), carbs: g0.carbs*f0, prodId: g0.id, frac: f0 };
   }
   // Clé d'inventaire = "nom (fraction)"
   function fracKey(p,f){ return f>=0.999 ? p.name : `${p.name} (${fracLabel(f)})`; }
@@ -1167,6 +1169,7 @@ function buildNutritionPlan(course, cfg) {
     const slope = slopeAt(p);
 
     const parts = [];
+    const partsStruct = [];   // structure exploitable pour l'éditeur : {prodId, frac, kind}
     let carbsSum = 0;
     let sodiumSum = 0;
     let volSum = 0;        // volume liquide cumulé (ml)
@@ -1174,17 +1177,18 @@ function buildNutritionPlan(course, cfg) {
     let thisForm = null;
 
     // 1) SOLIDE de l'heure (salé dominant après h4, sinon sucré varié)
-    let solidPart = null, solidCarbs = 0, solidSodium = 0;
+    let solidPart = null, solidCarbs = 0, solidSodium = 0, solidStruct = null;
     const saltyReady = saltyFood && h >= 4;
     const twoSaltyInARow = (lastForm === 'sale' && lastForm2 === 'sale');
     if (saltyReady && !twoSaltyInARow) {
       solidPart = `Option salée (${saltyFood.carbs}g)`;
       solidCarbs = saltyFood.carbs; solidSodium = saltyFood.sodium;
+      solidStruct = { prodId:'salty', frac:1, kind:'salty' };
       addInv('Option salée', 1);
       lastSaltyHour = h; thisForm = 'sale';
     } else {
       const solid = pickSolid30(isLastThird);
-      if (solid) { solidPart = solid.label; solidCarbs = solid.carbs; thisForm = 'sucre'; }
+      if (solid) { solidPart = solid.label; solidCarbs = solid.carbs; thisForm = 'sucre'; solidStruct = { prodId: solid.prodId, frac: solid.frac, kind:'solid' }; }
     }
 
     // 2) BASE LIQUIDE (boisson ISO) en FRACTION de flasque, sans dépasser la cible
@@ -1201,6 +1205,7 @@ function buildNutritionPlan(course, cfg) {
       });
       const intake = fracIntake(drink, chosen);
       parts.push(fracText(drink, chosen));
+      partsStruct.push({ prodId: drink.id, frac: chosen, kind:'iso' });
       carbsSum += intake.carbs; sodiumSum += intake.sodium; volSum += intake.vol;
       addInv(fracKey(drink, chosen), 1);
       flaskIsoLeft -= chosen;
@@ -1208,7 +1213,7 @@ function buildNutritionPlan(course, cfg) {
     }
 
     // 3) AJOUTER LE SOLIDE (toujours un peu de solide, jamais 100% liquide)
-    if (solidPart) { parts.push(solidPart); carbsSum += solidCarbs; sodiumSum += solidSodium; }
+    if (solidPart) { parts.push(solidPart); if (solidStruct) partsStruct.push(solidStruct); carbsSum += solidCarbs; sodiumSum += solidSodium; }
 
     // 4) COMPLÉTION INTELLIGENTE (chantier 1) : si déficit > tolérance, ajouter la
     //    fraction d'un AUTRE produit dispo qui rapproche le plus de carbsH (sans surdoser).
@@ -1231,6 +1236,7 @@ function buildNutritionPlan(course, cfg) {
       if (!bestP || carbsSum + bestP.carbs*bestF > carbsH + 6) break;
       const intk = fracIntake(bestP, bestF);
       parts.push(fracText(bestP, bestF));
+      partsStruct.push({ prodId: bestP.id, frac: bestF, kind: bestP.type==='iso'?'iso':'solid' });
       carbsSum += intk.carbs; sodiumSum += intk.sodium; volSum += intk.vol;
       addInv(fracKey(bestP,bestF), 1);
     }
@@ -1248,6 +1254,7 @@ function buildNutritionPlan(course, cfg) {
         const realF = [1,0.75,0.667,0.5].reduce((b,x)=> Math.abs(x-f)<Math.abs(b-f)?x:b, 0.5);
         const ml = Math.round(flaskVol*realF);
         parts.push(`${fracLabel(realF)} flasque ${electro.name} (${ml}ml)`);
+        partsStruct.push({ prodId: electro.id, frac: realF, kind:'electro' });
         sodiumSum += (electro.sodium||0)*realF;
         volSum += ml;
         addInv(`${electro.name} (${fracLabel(realF)})`, 1);
@@ -1255,6 +1262,7 @@ function buildNutritionPlan(course, cfg) {
         if (flaskEleLeft < 0.34) { warnRefill = true; flaskEleLeft += 1.0; }
       } else {
         parts.push(`${waterNeeded} ml eau pure`);
+        partsStruct.push({ prodId:'eau', frac: Math.min(1, waterNeeded/500), kind:'water' });
       }
     }
 
@@ -1276,6 +1284,7 @@ function buildNutritionPlan(course, cfg) {
       label:`${h}h (env. km ${km.toFixed(0)})`,
       action: note,
       items: parts.join(' + '),
+      partsStruct,
       carbs: Math.round(carbsSum),
       sodium: Math.round(sodiumSum),
       eau_ml: mlPerHour,
@@ -1731,106 +1740,157 @@ function dismissRestoreBanner() {
 }
 
 // ============================================================
-// ÉDITION DES HEURES DU PLAN
+// ÉDITION DES HEURES DU PLAN — liste dynamique de produits
 // ============================================================
 let _editIdx = null;
+let _editRows = [];   // [{prodId, frac}] — état courant de l'éditeur
 const FRAC_LBL = {1:'1 entier', 0.75:'¾', 0.667:'⅔', 0.5:'½', 0.333:'⅓', 0.25:'¼'};
+
+// Produits virtuels (eau / salé) en plus du catalogue PRODUCTS
+const EDIT_SPECIAL = {
+  eau:   { id:'eau',   name:'Eau pure',     carbs:0,  sodium:0,   volume:500, fractions:[1,0.75,0.667,0.5,0.333] },
+  salty: { id:'salty', name:'Option salée', carbs:18, sodium:300, volume:0,   fractions:[1,0.5] }
+};
+function editProd(id) { return EDIT_SPECIAL[id] || PRODUCTS.find(p => p.id === id) || null; }
+
+// Reconstruit une structure {prodId,frac} depuis le texte items (fallback ancien plan)
+function parseItemsToStruct(text) {
+  if (!text) return [];
+  const fracMap = [['3/4',0.75],['2/3',0.667],['1/2',0.5],['1/3',0.333],['1/4',0.25]];
+  return text.split('+').map(seg => {
+    seg = seg.trim(); if (!seg) return null;
+    let frac = 1;
+    for (const [lbl,v] of fracMap) { if (seg.indexOf(lbl) !== -1) { frac = v; break; } }
+    const low = seg.toLowerCase();
+    if (low.indexOf('eau pure') !== -1 || /\d+\s*ml eau/.test(low)) {
+      const m = seg.match(/(\d+)\s*ml/);
+      return { prodId:'eau', frac: m ? Math.min(1, parseInt(m[1])/500) : frac };
+    }
+    if (low.indexOf('option salée') !== -1 || low.indexOf('salée') !== -1) return { prodId:'salty', frac };
+    let found = null;
+    PRODUCTS.forEach(p => { if (seg.indexOf(p.name) !== -1 && (!found || p.name.length > found.name.length)) found = p; });
+    return found ? { prodId: found.id, frac } : null;
+  }).filter(Boolean);
+}
 
 function editHour(idx) {
   _editIdx = idx;
   const e = planData.events[idx];
   document.getElementById('editTitle').textContent = e.hour + 'h — env. km ' + (e.km ? e.km.toFixed(0) : '?');
-  document.getElementById('editCurrent').textContent = 'Actuel : ' + e.items;
+  document.getElementById('editCurrent').textContent = 'Référence : ' + e.items;
   document.getElementById('eNote').value = e.action || '';
-  document.getElementById('eSalty').value = '0';
 
-  const selProds = (config.produits || []).map(id => PRODUCTS.find(p => p.id === id)).filter(Boolean);
-  const solids = selProds.filter(p => !['iso','electro'].includes(p.type));
-  const liquids = selProds.filter(p => ['iso','electro'].includes(p.type));
+  // Partir de l'existant : partsStruct si dispo, sinon parsing du texte
+  if (e.partsStruct && e.partsStruct.length) {
+    _editRows = e.partsStruct.map(p => ({ prodId: p.prodId, frac: p.frac }));
+  } else {
+    _editRows = parseItemsToStruct(e.items);
+  }
+  if (!_editRows.length) _editRows = [{ prodId:'eau', frac:1 }];
 
-  document.getElementById('eSolid').innerHTML = '<option value="">— aucun —</option>' +
-    solids.map(p => '<option value="' + p.id + '">' + p.name + ' (' + p.carbs + 'g' + (p.sodium?' · '+p.sodium+'mg Na':'') + ')</option>').join('');
-  document.getElementById('eLiq').innerHTML = '<option value="eau">Eau pure</option>' +
-    liquids.map(p => '<option value="' + p.id + '">' + p.name + ' (' + p.carbs + 'g G · ' + p.sodium + 'mg Na)</option>').join('');
-
-  updateSolidFracs(); updateLiqFracs(); previewEdit();
+  renderEditLines();
+  previewEdit();
   document.getElementById('editOverlay').classList.add('show');
 }
 
-function updateSolidFracs() {
-  const id = document.getElementById('eSolid').value;
-  const prod = id ? PRODUCTS.find(p => p.id === id) : null;
-  const fracs = prod ? prod.fractions : [1];
-  document.getElementById('eSolidFrac').innerHTML = fracs.map(f =>
-    '<option value="' + f + '">' + (FRAC_LBL[f] || '×'+f) + '</option>').join('');
+// Options de produits pour un <select> (groupées : spécial / mes produits / autres)
+function prodOptions(selectedId) {
+  const sel = (config.produits || []);
+  const inSel = PRODUCTS.filter(p => sel.includes(p.id));
+  const others = PRODUCTS.filter(p => !sel.includes(p.id));
+  const opt = (p) => {
+    const det = p.carbs ? p.carbs + 'g' : '';
+    const na  = p.sodium ? ' · ' + p.sodium + 'mg' : '';
+    const lbl = p.name + (det ? ' (' + det + na + ')' : '');
+    return '<option value="' + p.id + '"' + (p.id === selectedId ? ' selected' : '') + '>' + lbl + '</option>';
+  };
+  let h = '<optgroup label="Spécial">' +
+    opt(EDIT_SPECIAL.eau) + opt(EDIT_SPECIAL.salty) + '</optgroup>';
+  if (inSel.length) h += '<optgroup label="Mes produits course">' + inSel.map(opt).join('') + '</optgroup>';
+  if (others.length) h += '<optgroup label="Autres produits">' + others.map(opt).join('') + '</optgroup>';
+  return h;
 }
 
-function updateLiqFracs() {
-  const id = document.getElementById('eLiq').value;
-  const prod = id && id !== 'eau' ? PRODUCTS.find(p => p.id === id) : null;
-  const fracs = prod ? prod.fractions : [1, 0.75, 0.5];
-  document.getElementById('eLiqFrac').innerHTML = fracs.map(f =>
-    '<option value="' + f + '">' + (FRAC_LBL[f] || '×'+f) + '</option>').join('');
+function fracOptions(prodId, selFrac) {
+  const p = editProd(prodId);
+  const fracs = p ? p.fractions : [1];
+  // s'assurer que la fraction courante est présente
+  if (selFrac && !fracs.some(f => Math.abs(f - selFrac) < 0.02)) fracs.unshift(selFrac);
+  return fracs.map(f =>
+    '<option value="' + f + '"' + (Math.abs(f-selFrac)<0.02 ? ' selected' : '') + '>' + (FRAC_LBL[f] || '×'+f) + '</option>').join('');
+}
+
+function renderEditLines() {
+  const cont = document.getElementById('editLines');
+  cont.innerHTML = _editRows.map((row, i) => `
+    <div class="edt-row" style="margin-bottom:8px">
+      <select class="edt-sel wide" onchange="onLineProd(${i}, this.value)">${prodOptions(row.prodId)}</select>
+      <select class="edt-sel frac" onchange="onLineFrac(${i}, this.value)">${fracOptions(row.prodId, row.frac)}</select>
+      <button class="edt-del" onclick="removeEditLine(${i})" title="Supprimer">✕</button>
+    </div>`).join('');
+}
+
+function onLineProd(i, val) {
+  _editRows[i].prodId = val;
+  const p = editProd(val);
+  // réinitialiser la fraction sur la 1re fraction dispo du nouveau produit
+  _editRows[i].frac = p && p.fractions.length ? p.fractions[0] : 1;
+  renderEditLines();
+  previewEdit();
+}
+function onLineFrac(i, val) { _editRows[i].frac = parseFloat(val) || 1; previewEdit(); }
+function addEditLine() { _editRows.push({ prodId:'eau', frac:1 }); renderEditLines(); previewEdit(); }
+function removeEditLine(i) { _editRows.splice(i, 1); if (!_editRows.length) _editRows.push({prodId:'eau',frac:1}); renderEditLines(); previewEdit(); }
+
+function computeRows() {
+  let carbs = 0, sodium = 0, vol = 0;
+  _editRows.forEach(r => {
+    const p = editProd(r.prodId); if (!p) return;
+    carbs += (p.carbs||0) * r.frac;
+    sodium += (p.sodium||0) * r.frac;
+    vol += (p.volume||0) * r.frac;
+  });
+  return { carbs: Math.round(carbs), sodium: Math.round(sodium), vol: Math.round(vol) };
 }
 
 function previewEdit() {
-  const solidId = document.getElementById('eSolid').value;
-  const solidFrac = parseFloat(document.getElementById('eSolidFrac').value) || 1;
-  const liqId = document.getElementById('eLiq').value;
-  const liqFrac = parseFloat(document.getElementById('eLiqFrac').value) || 1;
-  const salty = parseInt(document.getElementById('eSalty').value) || 0;
-  const solid = solidId ? PRODUCTS.find(p => p.id === solidId) : null;
-  const liq = liqId && liqId !== 'eau' ? PRODUCTS.find(p => p.id === liqId) : null;
-  let carbs = 0, sodium = 0, vol = 0;
-  if (solid) { carbs += solid.carbs * solidFrac; sodium += solid.sodium * solidFrac; }
-  if (salty) { carbs += 18; sodium += 300; }
-  if (liq) { carbs += liq.carbs * liqFrac; sodium += liq.sodium * liqFrac; vol = liq.volume * liqFrac; }
+  const t = computeRows();
   document.getElementById('editPreview').innerHTML =
-    '<span style="color:var(--acc);font-weight:600">' + Math.round(carbs) + 'g glucides</span>' +
-    ' · <span style="color:var(--blue)">' + Math.round(sodium) + 'mg Na</span>' +
-    (vol ? ' · <span style="color:var(--mut)">💧 ' + Math.round(vol) + ' ml</span>' : '');
+    '<span style="color:var(--acc);font-weight:600">' + t.carbs + 'g glucides</span>' +
+    ' · <span style="color:var(--blue)">' + t.sodium + 'mg Na</span>' +
+    (t.vol ? ' · <span style="color:var(--mut)">💧 ' + t.vol + ' ml</span>' : '');
 }
 
 function confirmEdit() {
-  const solidId = document.getElementById('eSolid').value;
-  const solidFrac = parseFloat(document.getElementById('eSolidFrac').value) || 1;
-  const liqId = document.getElementById('eLiq').value;
-  const liqFrac = parseFloat(document.getElementById('eLiqFrac').value) || 1;
-  const salty = parseInt(document.getElementById('eSalty').value) || 0;
   const note = document.getElementById('eNote').value.trim();
-  const solid = solidId ? PRODUCTS.find(p => p.id === solidId) : null;
-  const liq = liqId && liqId !== 'eau' ? PRODUCTS.find(p => p.id === liqId) : null;
-
   const e = planData.events[_editIdx];
-  const parts = []; let carbs = 0, sodium = 0, eauMl = e.eau_ml || 0;
-
-  if (solid) {
-    const fl = FRAC_LBL[solidFrac]; const sfx = (fl && fl !== '1 entier') ? ' ('+fl+')' : '';
-    parts.push(solid.name + sfx);
-    carbs += solid.carbs * solidFrac; sodium += solid.sodium * solidFrac;
-  }
-  if (salty) { parts.push('Option salée'); carbs += 18; sodium += 300; }
-  if (liq) {
-    const fl = FRAC_LBL[liqFrac]; const sfx = (fl && fl !== '1 entier') ? ' ('+fl+')' : '';
-    parts.push(liq.name + sfx + ' — flasque');
-    carbs += liq.carbs * liqFrac; sodium += liq.sodium * liqFrac;
-    eauMl = Math.round(liq.volume * liqFrac);
-  } else if (parts.length === 0) {
-    parts.push('Eau pure');
-  }
-
+  const parts = [];
+  _editRows.forEach(r => {
+    const p = editProd(r.prodId); if (!p) return;
+    const fl = FRAC_LBL[r.frac];
+    const sfx = (fl && fl !== '1 entier') ? ' (' + fl + ')' : '';
+    if (p.id === 'eau') { parts.push('Eau pure' + (r.frac < 1 ? ' (' + Math.round(p.volume*r.frac) + 'ml)' : ' (500ml)')); }
+    else if (p.id === 'salty') { parts.push('Option salée' + sfx); }
+    else {
+      const isLiquid = ['iso','electro'].includes(p.type);
+      parts.push(p.name + sfx + (isLiquid ? ' — flasque' : ''));
+    }
+  });
+  const t = computeRows();
   e.items = parts.join(' + ');
-  e.carbs = Math.round(carbs); e.sodium = Math.round(sodium); e.eau_ml = eauMl;
+  e.partsStruct = _editRows.map(r => ({ prodId: r.prodId, frac: r.frac, kind: (editProd(r.prodId)||{}).type || r.prodId }));
+  e.carbs = t.carbs; e.sodium = t.sodium;
+  // e.eau_ml reste la cible d'hydratation horaire (rappel "boire X ml/h"), non écrasée
   e.action = note; e._edited = true;
+
+  // Recalcul des totaux du plan
+  const raceEv = planData.events.filter(ev => ev.type === 'hour');
+  planData.totalCarbsPlan = raceEv.reduce((s,ev) => s+(ev.carbs||0), 0);
+  planData.avgCarbsH = planData.nbHours > 0 ? Math.round(planData.totalCarbsPlan / planData.nbHours) : 0;
 
   closeEditModal();
   savePlanToStorage();
   renderNutrition();
-
-  // Recalcul des totaux dans l'onglet
-  const raceEv = planData.events.filter(ev => ev.type === 'hour');
-  planData.totalCarbsPlan = raceEv.reduce((s,ev) => s+(ev.carbs||0), 0);
-  planData.avgCarbsH = planData.nbHours > 0 ? Math.round(planData.totalCarbsPlan / planData.nbHours) : 0;
 }
 
 function closeEditModal() {
@@ -2721,25 +2781,11 @@ setSalty(true);
     <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--acc);letter-spacing:1px" id="editTitle">Modifier heure</div>
     <div style="font-size:11px;color:var(--mut);margin-bottom:14px;margin-top:2px" id="editCurrent"></div>
 
-    <label class="edt-lbl" style="margin-top:0">Solide / semi-solide</label>
-    <div class="edt-row">
-      <select id="eSolid" class="edt-sel wide" onchange="updateSolidFracs();previewEdit()"></select>
-      <select id="eSolidFrac" class="edt-sel frac" onchange="previewEdit()"></select>
-    </div>
+    <label class="edt-lbl" style="margin-top:0">Produits de l'heure</label>
+    <div id="editLines"></div>
+    <button onclick="addEditLine()" style="width:100%;background:var(--surf2);color:var(--acc);border:1px dashed var(--acc);border-radius:6px;padding:9px;font-size:13px;cursor:pointer;margin-top:2px">+ Ajouter un produit</button>
 
-    <label class="edt-lbl">Option salée</label>
-    <select id="eSalty" class="edt-sel wide" onchange="previewEdit()">
-      <option value="0">— aucune —</option>
-      <option value="1">Option salée générique (18g G · 300mg Na)</option>
-    </select>
-
-    <label class="edt-lbl">Liquide (flasque ISO / électrolytes)</label>
-    <div class="edt-row">
-      <select id="eLiq" class="edt-sel wide" onchange="updateLiqFracs();previewEdit()"></select>
-      <select id="eLiqFrac" class="edt-sel frac" onchange="previewEdit()"></select>
-    </div>
-
-    <div id="editPreview">—</div>
+    <div id="editPreview" style="margin-top:12px">—</div>
 
     <label class="edt-lbl">Note / contexte (optionnel)</label>
     <input id="eNote" type="text" class="edt-note" placeholder="ex : descente — bonne fenêtre digestive">
