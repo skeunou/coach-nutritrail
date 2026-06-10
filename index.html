@@ -324,39 +324,19 @@ tr:hover td{background:rgba(255,255,255,.02)}
       </div>
       <div class="hint" id="tpsHint">Format : 4h30 — ou ⚡ Auto depuis votre footing</div>
     </div>
-    <div class="form-group" style="grid-column:1/-1">
-      <label>Stratégie de course (allure PacePro)</label>
-      <div style="background:var(--surf2);border:1px solid var(--bdr);border-radius:8px;padding:14px 16px">
-        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--txt);margin-bottom:4px">
-          <span>Stratégie d'allure</span><span id="splitVal" style="color:var(--acc)">équilibré</span>
-        </div>
-        <input type="range" id="fStratSplit" min="-100" max="100" value="0" step="5" oninput="onStrategyChange()" style="width:100%;accent-color:var(--acc)">
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--mut);margin-top:2px">
-          <span>◀ Positif (vite → lent)</span><span>Négatif (lent → vite) ▶</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--txt);margin:16px 0 4px">
-          <span>Effort en montée</span><span id="upVal" style="color:var(--acc)">normal</span>
-        </div>
-        <input type="range" id="fEffortMontee" min="-100" max="100" value="0" step="5" oninput="onStrategyChange()" style="width:100%;accent-color:var(--acc)">
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--mut);margin-top:2px">
-          <span>◀ Plus facile (je me ménage)</span><span>Plus difficile (je tiens) ▶</span>
-        </div>
-        <div style="text-align:right;margin-top:10px"><button type="button" onclick="resetStrategy()" style="background:none;border:none;color:var(--blue);font-size:11px;cursor:pointer">↺ Réinitialiser</button></div>
-      </div>
-    </div>
-    <div class="form-group">
-      <label>Poids corporel (kg)</label>
-      <input type="number" id="fPoids" value="70" min="40" max="120">
-    </div>
     <div class="form-group">
       <label>Vitesse de footing (km/h)</label>
       <input type="number" id="fVef" value="10" min="5" max="16" step="0.1">
-      <div class="hint">Allure endurance fondamentale, à plat</div>
+      <div class="hint">Allure endurance fondamentale, à plat · alimente ⚡ Auto</div>
     </div>
     <div class="form-group">
       <label>Volume course à pied (h/semaine)</label>
       <input type="number" id="fVolume" value="6" min="0" max="25" step="0.5" oninput="updateProfileBadge()">
       <div class="hint" id="profileBadge">Profil déduit : <b style="color:var(--acc)">Confirmé</b></div>
+    </div>
+    <div class="form-group">
+      <label>Poids corporel (kg)</label>
+      <input type="number" id="fPoids" value="70" min="40" max="120">
     </div>
     <div class="form-group">
       <label>Courbe de fatigue</label>
@@ -1175,6 +1155,22 @@ function resetStrategy() {
   onStrategyChange();
 }
 
+// Recalcule TOUT le plan avec les curseurs actuels (sans repasser par Config).
+// Le temps total reste celui fixé au moment du Générer.
+function actualiserPlan() {
+  if (!courseData || !gpxData || !config) return;
+  config.stratSplit = stratSplit();
+  config.effortMontee = effortMontee();
+  const tps = config.tpsMin || courseData.totalMins;
+  courseData = computeCourse(tps, config.alpha);
+  planData = buildNutritionPlan(courseData, config);
+  savePlanToStorage();
+  renderProfil();
+  renderPassage();
+  renderNutrition();
+  renderExport();
+}
+
 function computeCourse(tpsTotal, alpha) {
   const pts = gpxData;
   // Distance réelle (calculée sur trace complète au parsing)
@@ -1624,7 +1620,27 @@ function renderProfil() {
       <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:26px;height:8px;border-radius:3px;background:linear-gradient(90deg,#38bdf8,#4ade80,#ff9500,#f87171);display:inline-block"></span>Lent → Rapide</span>
       <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(160,160,180,0.35);display:inline-block"></span>Profil (altitude)</span>
     </div>
-    <div style="font-size:12px;color:var(--mut);margin-top:8px">Allure km/km selon pente + fatigue (${cfg.label || cfg.niveau}, α=${cfg.alpha}) + tes curseurs stratégie. Le temps total reste celui fixé — les curseurs redistribuent. Bouge-les puis <b style="color:var(--txt)">Génère</b> pour appliquer partout.</div>
+    <div style="background:var(--surf2);border:1px solid var(--bdr);border-radius:8px;padding:14px 16px;margin-top:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--txt);margin-bottom:4px">
+        <span>Stratégie d'allure</span><span id="splitVal" style="color:var(--acc)">équilibré</span>
+      </div>
+      <input type="range" id="fStratSplit" min="-100" max="100" value="${Math.round(-(cfg.stratSplit||0)*100)}" step="5" oninput="onStrategyChange()" style="width:100%;accent-color:var(--acc)">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--mut);margin-top:2px">
+        <span>◀ Positif (vite → lent)</span><span>Négatif (lent → vite) ▶</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--txt);margin:16px 0 4px">
+        <span>Effort en montée</span><span id="upVal" style="color:var(--acc)">normal</span>
+      </div>
+      <input type="range" id="fEffortMontee" min="-100" max="100" value="${Math.round((cfg.effortMontee||0)*100)}" step="5" oninput="onStrategyChange()" style="width:100%;accent-color:var(--acc)">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--mut);margin-top:2px">
+        <span>◀ Plus facile (je me ménage)</span><span>Plus difficile (je tiens) ▶</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px">
+        <button type="button" onclick="resetStrategy()" style="background:none;border:none;color:var(--blue);font-size:11px;cursor:pointer">↺ Réinitialiser</button>
+        <button type="button" onclick="actualiserPlan()" style="background:var(--acc);color:#000;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer">🔄 Actualiser</button>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--mut);margin-top:10px">Allure km/km selon pente + fatigue (${cfg.label || cfg.niveau}, α=${cfg.alpha}) + tes curseurs. Le temps total reste fixe — les curseurs redistribuent. <b style="color:var(--txt)">Actualiser</b> recalcule la courbe, les temps de passage et la nutrition.</div>
   </div>
   `;
 
@@ -1634,6 +1650,7 @@ function renderProfil() {
   requestAnimationFrame(() => {
     drawElevChart();
     drawPaceChart();
+    updateStrategyLabels();
   });
 }
 
