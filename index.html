@@ -339,6 +339,22 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <div class="hint" id="profileBadge">Profil déduit : <b style="color:var(--acc)">Confirmé</b></div>
     </div>
     <div class="form-group">
+      <label>Courbe de fatigue</label>
+      <div class="radio-group" id="rFatigueMode">
+        <span class="radio-opt sel" onclick="setFatigueMode('perso')" data-val="perso">👤 Perso</span>
+        <span class="radio-opt" onclick="setFatigueMode('standard')" data-val="standard">🌍 Standard</span>
+      </div>
+      <div class="hint" id="fatigueModeHint">Calibrée sur tes données (déduite de ton volume d'entraînement).</div>
+      <div id="stdNiveauWrap" style="display:none;margin-top:10px">
+        <label style="font-size:12px;color:var(--mut)">Niveau de l'athlète</label>
+        <select id="fNiveauStd" onchange="updateProfileBadge()" style="width:100%;background:var(--surf2);color:var(--txt);border:1px solid var(--bdr);border-radius:8px;padding:10px;font-family:inherit;font-size:14px;margin-top:4px">
+          <option value="debutant">Débutant (&lt; 3h/sem) — α 0.08</option>
+          <option value="confirme" selected>Confirmé (3–6h/sem) — α 0.05</option>
+          <option value="ultra">Ultra (&gt; 6h/sem) — α 0.03</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
       <label>Glucides / heure</label>
       <div class="radio-group" id="rCarbsMode">
         <span class="radio-opt sel" onclick="setCarbsMode('auto')" data-val="auto">🤖 Auto</span>
@@ -845,6 +861,7 @@ function haversine(a, b) {
 // Init : vérifier si un plan édité est disponible + caler les tabs sticky sous le header
 window.addEventListener('load', function() {
   checkRestoreBanner();
+  updateProfileBadge();
   const hd = document.querySelector('.header'), tb = document.querySelector('.tabs');
   if (hd && tb) {
     const setTop = () => { tb.style.top = hd.offsetHeight + 'px'; };
@@ -1022,6 +1039,43 @@ function alphaFromVolume(volH) {
   return { alpha: 0.03, niveau: 'ultra', label: 'Ultra' };
 }
 
+// Niveaux génériques (mode Standard) : α fixe par catégorie, indépendant du volume.
+const ALPHA_STD = {
+  debutant: { alpha: 0.08, label: 'Débutant' },
+  confirme: { alpha: 0.05, label: 'Confirmé' },
+  ultra:    { alpha: 0.03, label: 'Ultra' }
+};
+
+// Résout α + niveau selon le mode courbe de fatigue.
+//  - perso (défaut)  : α déduit de TON volume d'entraînement réel (calibré sur tes données)
+//  - standard        : α d'un niveau choisi explicitement (pour un ami, formules génériques)
+function resolveAlpha() {
+  const mode = getRadio('rFatigueMode') || 'perso';
+  if (mode === 'standard') {
+    const niv = (document.getElementById('fNiveauStd') || {}).value || 'confirme';
+    const m = ALPHA_STD[niv] || ALPHA_STD.confirme;
+    return { alpha: m.alpha, niveau: niv, label: m.label, mode: 'standard' };
+  }
+  const v = parseFloat(document.getElementById('fVolume').value) || 0;
+  const p = alphaFromVolume(v);
+  return { alpha: p.alpha, niveau: p.niveau, label: p.label, mode: 'perso' };
+}
+
+function setFatigueMode(mode) {
+  document.querySelectorAll('#rFatigueMode .radio-opt').forEach(o =>
+    o.classList.toggle('sel', o.dataset.val === mode));
+  const std = mode === 'standard';
+  document.getElementById('stdNiveauWrap').style.display = std ? 'block' : 'none';
+  document.getElementById('fatigueModeHint').textContent = std
+    ? "Modèle générique (sport-science) — pour un autre coureur."
+    : "Calibrée sur tes données (déduite de ton volume d'entraînement).";
+  // En Standard, le volume ne pilote plus la fatigue : on le grise pour éviter la confusion.
+  const vol = document.getElementById('fVolume');
+  vol.disabled = std;
+  vol.parentElement.style.opacity = std ? 0.45 : 1;
+  updateProfileBadge();
+}
+
 // Facteur de fatigue au kilomètre k : 1 − α·ln(k)
 // fc(1)=1 (aucune dégradation au km 1), décroissance logarithmique ensuite.
 // Monotone, pas d'inversion de profils possible (α_ultra < α_confirmé < α_débutant).
@@ -1037,10 +1091,12 @@ function fatigueCoeff(effortKm, alpha) {
 }
 
 function updateProfileBadge() {
-  const v = parseFloat(document.getElementById('fVolume').value) || 0;
-  const p = alphaFromVolume(v);
+  const r = resolveAlpha();
+  const src = r.mode === 'standard'
+    ? 'Modèle standard'
+    : 'Profil déduit';
   document.getElementById('profileBadge').innerHTML =
-    'Profil déduit : <b style="color:var(--acc)">' + p.label + '</b> (α=' + p.alpha + ')';
+    src + ' : <b style="color:var(--acc)">' + r.label + '</b> (α=' + r.alpha + ')';
 }
 
 // ===== ESTIMATION AUTO DU TEMPS (norme ITRA, spec v3) =====
@@ -1049,8 +1105,7 @@ function updateProfileBadge() {
 function estimateTimeAuto() {
   if (!gpxData) { alert('Importez d\'abord un fichier GPX.'); return; }
   const vef = parseFloat(document.getElementById('fVef').value) || 10;
-  const volH = parseFloat(document.getElementById('fVolume').value) || 6;
-  const alpha = alphaFromVolume(volH).alpha;
+  const alpha = resolveAlpha().alpha;
   const dKm = (gpxData._realDist || gpxData[gpxData.length-1].dist) / 1000;
   const dPlusCorr = (gpxData._realDpPos || 0) * DCOEF();
   const dFlat = dKm + dPlusCorr / 100;
@@ -1754,7 +1809,7 @@ function renderPassage() {
       <span>🔵 Descente ${zD}%</span>
     </div>
     <div style="font-size:12px;color:var(--mut);margin-top:12px">
-      Coefficient de fatigue appliqué : modèle log v3 <b style="color:var(--txt)">${config.niveau}</b> (α=${config.alpha})
+      Coefficient de fatigue : <b style="color:var(--txt)">${config.label || config.niveau}</b> (α=${config.alpha}) · ${config.fatigueMode === 'standard' ? 'modèle standard 🌍' : 'perso 👤 (tes données)'} · effort = km + D+/100
     </div>
   </div>
 
@@ -2426,7 +2481,7 @@ function exportPDFComplet() {
 
   // Note
   doc.setFont('helvetica','italic'); doc.setFontSize(7); doc.setTextColor(...MUT);
-  doc.text('Cumul D+ = denivele positif cumule depuis le depart (total ' + c.dpPos + 'm). Modele fatigue log v3 : ' + config.niveau + ' (a=' + config.alpha + ')', pad, y);
+  doc.text('Cumul D+ = denivele positif cumule depuis le depart (total ' + c.dpPos + 'm). Fatigue : ' + (config.label || config.niveau) + ' (a=' + config.alpha + ', ' + (config.fatigueMode === 'standard' ? 'standard' : 'perso') + ') - effort = km + D+/100', pad, y);
 
   // ---- PAGE 3/4 : Nutrition ----
   let pageNum = 3;
@@ -2769,7 +2824,7 @@ function generer() {
   const poids = parseInt(document.getElementById('fPoids').value) || 70;
   const volHebdo = parseFloat(document.getElementById('fVolume').value) || 6;
   const vef = parseFloat(document.getElementById('fVef').value) || 10;
-  const prof = alphaFromVolume(volHebdo);
+  const prof = resolveAlpha();
   const niveau = prof.niveau;
   const isUltraEffort = (gpxData._realDist || gpxData[gpxData.length-1].dist) > 50000 || (tpsMin > 360);
 
@@ -2801,6 +2856,8 @@ function generer() {
     digest: getRadio('rDigest') || 'normale',
     niveau,
     alpha: prof.alpha,
+    fatigueMode: prof.mode,
+    label: prof.label,
     vef,
     volHebdo,
     meteo: getRadio('rMeteo') || 'tempere',
