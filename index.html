@@ -1025,8 +1025,14 @@ function alphaFromVolume(volH) {
 // Facteur de fatigue au kilomètre k : 1 − α·ln(k)
 // fc(1)=1 (aucune dégradation au km 1), décroissance logarithmique ensuite.
 // Monotone, pas d'inversion de profils possible (α_ultra < α_confirmé < α_débutant).
-function fatigueCoeff(km, alpha) {
-  const k = Math.max(1, km);
+function fatigueCoeff(effortKm, alpha) {
+  // Déclin de performance selon l'EFFORT ÉQUIVALENT-PLAT cumulé (et non les km bruts).
+  //   effortKm = km parcourus + D+ cumulé / 100  (norme ITRA)
+  //   → un maratrail à 2000 D+ fatigue comme un ~62 km plat, pas comme un 42 km.
+  // Forme logarithmique VALIDÉE sur données GPS réelles (UBS 6h, circuit répété) :
+  //   à effort ≈ 60 km-équiv, l'athlète tourne à ~80 % de sa vitesse de frais,
+  //   ce que reproduit 1 − 0.05·ln(60) ≈ 0.80. α dépend du volume d'entraînement.
+  const k = Math.max(1, effortKm);
   return Math.max(0.55, 1 - alpha * Math.log(k));
 }
 
@@ -1051,8 +1057,10 @@ function estimateTimeAuto() {
   const vBase = vef * (dKm / dFlat);
   let mins = 0;
   const fullKm = Math.floor(dKm);
-  for (let k = 1; k <= fullKm; k++) mins += 60 / (vBase * fatigueCoeff(k, alpha));
-  mins += (dKm - fullKm) * 60 / (vBase * fatigueCoeff(Math.max(1,fullKm), alpha)); // km partiel final
+  // Effort équivalent-plat cumulé à chaque km : km + (D+ réparti jusqu'à ce km)/100
+  const effAt = (k) => k + (dPlusCorr * (k / dKm)) / 100;
+  for (let k = 1; k <= fullKm; k++) mins += 60 / (vBase * fatigueCoeff(effAt(k), alpha));
+  mins += (dKm - fullKm) * 60 / (vBase * fatigueCoeff(effAt(dKm), alpha)); // km partiel final
   const h = Math.floor(Math.round(mins) / 60), m = Math.round(mins) % 60;
   document.getElementById('fTps').value = h + 'h' + String(m).padStart(2,'0');
   document.getElementById('tpsHint').innerHTML =
@@ -1066,12 +1074,23 @@ function computeCourse(tpsTotal, alpha) {
   const totalMins = tpsTotal;
 
   // Calcul poids relatif de chaque segment (effort normalisé)
-  // slopeCoeff = calibrage terrain sur données GPS réelles collectées · fatigueCoeff = courbe log v3
+  // slopeCoeff = pente locale (instantané) · fatigueCoeff = usure cumulée (km + D+/100)
+  // Le D+ joue donc DEUX rôles distincts : il ralentit sur le moment (slopeCoeff)
+  // ET use pour la suite (fatigueCoeff via l'effort équivalent). Pas de double comptage :
+  // ce sont deux mécanismes physiologiques différents (mécanique vs accumulation).
+  const dcw = DCOEF();
+  const realDpos = (pts._realDpPos !== undefined ? pts._realDpPos : 0) * dcw; // D+ total réel corrigé
+  // 1er passage : profil de montée cumulée (sur points lissés) pour normaliser ensuite
+  let rawCum = 0;
+  const cumProfile = pts.map(p => { if (p.dEle > 0) rawCum += p.dEle; return rawCum; });
+  const cumTot = rawCum || 1;
   let totalWeight = 0;
   const weights = pts.map((p, i) => {
     if (i === 0) return 0;
+    const dpAtPoint = realDpos * (cumProfile[i] / cumTot); // D+ cumulé recalé sur le réel
+    const effortKm = p.dist / 1000 + dpAtPoint / 100;       // effort équivalent-plat
     const sc = slopeCoeff(p.slope);
-    const fc = fatigueCoeff(p.dist / 1000, alpha);
+    const fc = fatigueCoeff(effortKm, alpha);
     const w = p.segDist / (sc * fc);
     totalWeight += w;
     return w;
@@ -1607,9 +1626,10 @@ function drawFatigueChart() {
   ctx.fillStyle = grad;
   ctx.beginPath();
   ctx.moveTo(pad.l, H - pad.b);
+  const effTotal = courseData.totalDist / 1000 + (courseData.dpPos || 0) / 100;
   for (let i = 0; i <= steps; i++) {
     const ratio = i / steps;
-    const fc = fatigueCoeff(Math.max(1, ratio * courseData.totalDist / 1000), config.alpha);
+    const fc = fatigueCoeff(Math.max(1, ratio * effTotal), config.alpha);
     const x = pad.l + ratio * (W - pad.l - pad.r);
     const y = pad.t + (1 - (fc - 0.5) / 0.55) * (H - pad.t - pad.b);
     ctx.lineTo(x, y);
@@ -1624,7 +1644,7 @@ function drawFatigueChart() {
   ctx.beginPath();
   for (let i = 0; i <= steps; i++) {
     const ratio = i / steps;
-    const fc = fatigueCoeff(Math.max(1, ratio * courseData.totalDist / 1000), config.alpha);
+    const fc = fatigueCoeff(Math.max(1, ratio * effTotal), config.alpha);
     const x = pad.l + ratio * (W - pad.l - pad.r);
     const y = pad.t + (1 - (fc - 0.5) / 0.55) * (H - pad.t - pad.b);
     i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
