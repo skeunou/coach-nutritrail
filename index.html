@@ -165,7 +165,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .phase-seg{display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:rgba(0,0,0,.7)}
 
 /* FATIGUE CURVE */
-#fatigueChart{width:100%;height:120px}
+#paceChart{width:100%;height:150px}
 
 /* PRODUCT GRID */
 .product-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
@@ -323,6 +323,26 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <button onclick="estimateTimeAuto()" style="flex-shrink:0;background:var(--surf2);color:var(--acc);border:1px solid var(--acc);border-radius:8px;padding:0 12px;font-size:12px;cursor:pointer" title="Estimer depuis vitesse footing + D+ (norme ITRA)">⚡ Auto</button>
       </div>
       <div class="hint" id="tpsHint">Format : 4h30 — ou ⚡ Auto depuis votre footing</div>
+    </div>
+    <div class="form-group" style="grid-column:1/-1">
+      <label>Stratégie de course (allure PacePro)</label>
+      <div style="background:var(--surf2);border:1px solid var(--bdr);border-radius:8px;padding:14px 16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--txt);margin-bottom:4px">
+          <span>Stratégie d'allure</span><span id="splitVal" style="color:var(--acc)">équilibré</span>
+        </div>
+        <input type="range" id="fStratSplit" min="-100" max="100" value="0" step="5" oninput="onStrategyChange()" style="width:100%;accent-color:var(--acc)">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--mut);margin-top:2px">
+          <span>◀ Positif (vite → lent)</span><span>Négatif (lent → vite) ▶</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--txt);margin:16px 0 4px">
+          <span>Effort en montée</span><span id="upVal" style="color:var(--acc)">normal</span>
+        </div>
+        <input type="range" id="fEffortMontee" min="-100" max="100" value="0" step="5" oninput="onStrategyChange()" style="width:100%;accent-color:var(--acc)">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--mut);margin-top:2px">
+          <span>◀ Plus facile (je me ménage)</span><span>Plus difficile (je tiens) ▶</span>
+        </div>
+        <div style="text-align:right;margin-top:10px"><button type="button" onclick="resetStrategy()" style="background:none;border:none;color:var(--blue);font-size:11px;cursor:pointer">↺ Réinitialiser</button></div>
+      </div>
     </div>
     <div class="form-group">
       <label>Poids corporel (kg)</label>
@@ -791,7 +811,7 @@ function showTab(name) {
 
   // Redessiner les canvas si on arrive sur l'onglet profil (offsetWidth dispo seulement visible)
   if (name === 'profil' && courseData) {
-    requestAnimationFrame(() => { drawElevChart(); drawFatigueChart(); });
+    requestAnimationFrame(() => { drawElevChart(); drawPaceChart(); });
   }
 }
 
@@ -862,6 +882,7 @@ function haversine(a, b) {
 window.addEventListener('load', function() {
   checkRestoreBanner();
   updateProfileBadge();
+  updateStrategyLabels();
   const hd = document.querySelector('.header'), tb = document.querySelector('.tabs');
   if (hd && tb) {
     const setTop = () => { tb.style.top = hd.offsetHeight + 'px'; };
@@ -1122,6 +1143,38 @@ function estimateTimeAuto() {
     '⚡ Estimé : <b style="color:var(--acc)">' + h + 'h' + String(m).padStart(2,'0') + '</b> (V<sub>EF</sub> ' + vef + ' km/h · D<sub>flat</sub> ITRA ' + dFlat.toFixed(1) + ' km-effort) — modifiable';
 }
 
+// ===== STRATÉGIE D'ALLURE (façon Garmin PacePro) =====
+// Deux curseurs qui redistribuent l'allure SANS changer le temps total.
+//  - stratSplit  : +1 = splits positifs (vite→lent), −1 = splits négatifs (lent→vite)
+//  - effortMontee: +1 = je tiens l'allure en côte, −1 = je me ménage en côte
+// Slider "Positif" à gauche (val −100) comme Garmin → on inverse le signe.
+function stratSplit() {
+  const e = document.getElementById('fStratSplit');
+  return e ? -(parseFloat(e.value) || 0) / 100 : 0;
+}
+function effortMontee() {
+  const e = document.getElementById('fEffortMontee');
+  return e ? (parseFloat(e.value) || 0) / 100 : 0;
+}
+function updateStrategyLabels() {
+  const s = stratSplit(), u = effortMontee();
+  const sl = document.getElementById('splitVal'), ul = document.getElementById('upVal');
+  if (sl) sl.textContent = Math.abs(s) < 0.06 ? 'équilibré'
+    : (s > 0 ? 'positif' : 'négatif') + (Math.abs(s) > 0.5 ? ' (fort)' : ' (modéré)');
+  if (ul) ul.textContent = Math.abs(u) < 0.06 ? 'normal'
+    : (u > 0 ? 'soutenu' : 'préservé') + (Math.abs(u) > 0.5 ? ' (fort)' : ' (modéré)');
+}
+function onStrategyChange() {
+  updateStrategyLabels();
+  // Aperçu live de la courbe d'allure (les temps de passage/nutrition suivent au prochain Générer)
+  if (courseData && gpxData) drawPaceChart();
+}
+function resetStrategy() {
+  const a = document.getElementById('fStratSplit'), b = document.getElementById('fEffortMontee');
+  if (a) a.value = 0; if (b) b.value = 0;
+  onStrategyChange();
+}
+
 function computeCourse(tpsTotal, alpha) {
   const pts = gpxData;
   // Distance réelle (calculée sur trace complète au parsing)
@@ -1139,14 +1192,22 @@ function computeCourse(tpsTotal, alpha) {
   let rawCum = 0;
   const cumProfile = pts.map(p => { if (p.dEle > 0) rawCum += p.dEle; return rawCum; });
   const cumTot = rawCum || 1;
+  const eM = effortMontee();   // -1..1 : effort en montée
+  const sStrat = stratSplit(); // -1..1 : stratégie splits
+  const UP_AMP = 0.25, SPLIT_AMP = 0.30;
   let totalWeight = 0;
   const weights = pts.map((p, i) => {
     if (i === 0) return 0;
     const dpAtPoint = realDpos * (cumProfile[i] / cumTot); // D+ cumulé recalé sur le réel
     const effortKm = p.dist / 1000 + dpAtPoint / 100;       // effort équivalent-plat
-    const sc = slopeCoeff(p.slope);
+    let sc = slopeCoeff(p.slope);
+    // Effort en montée : >0 = je tiens l'allure en côte (sc remonte vers le plat), <0 = je me ménage
+    if (p.slope > 1) sc = Math.min(0.99, Math.max(0.30, sc * (1 + eM * UP_AMP)));
+    // Stratégie splits : facteur de vitesse selon la position (début vs fin de course)
+    const f = p.dist / totalDist;                  // position 0..1
+    const splitF = 1 + sStrat * SPLIT_AMP * (0.5 - f); // >1 = plus vite ici
     const fc = fatigueCoeff(effortKm, alpha);
-    const w = p.segDist / (sc * fc);
+    const w = p.segDist / (sc * fc * splitF);
     totalWeight += w;
     return w;
   });
@@ -1557,9 +1618,13 @@ function renderProfil() {
   </div>
 
   <div class="card">
-    <div class="card-title">Courbe de fatigue modélisée</div>
-    <canvas id="fatigueChart"></canvas>
-    <div style="font-size:12px;color:var(--mut);margin-top:8px">Modèle log v3 : 1 − α·ln(km) · profil "${cfg.niveau}" (α=${cfg.alpha}) · Appliqué aux temps de passage</div>
+    <div class="card-title">Courbe d'allure prévue</div>
+    <canvas id="paceChart"></canvas>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--mut);margin-top:10px">
+      <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:26px;height:8px;border-radius:3px;background:linear-gradient(90deg,#38bdf8,#4ade80,#ff9500,#f87171);display:inline-block"></span>Lent → Rapide</span>
+      <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(160,160,180,0.35);display:inline-block"></span>Profil (altitude)</span>
+    </div>
+    <div style="font-size:12px;color:var(--mut);margin-top:8px">Allure km/km selon pente + fatigue (${cfg.label || cfg.niveau}, α=${cfg.alpha}) + tes curseurs stratégie. Le temps total reste celui fixé — les curseurs redistribuent. Bouge-les puis <b style="color:var(--txt)">Génère</b> pour appliquer partout.</div>
   </div>
   `;
 
@@ -1568,7 +1633,7 @@ function renderProfil() {
   // Draw elevation chart
   requestAnimationFrame(() => {
     drawElevChart();
-    drawFatigueChart();
+    drawPaceChart();
   });
 }
 
@@ -1649,64 +1714,117 @@ function drawElevChart() {
   canvas.style.height = '180px';
 }
 
-function drawFatigueChart() {
-  const canvas = document.getElementById('fatigueChart');
-  if (!canvas) return;
+// Couleur allure : t=0 lent (bleu) → t=1 rapide (rouge)
+function paceColor(t) {
+  t = Math.max(0, Math.min(1, t));
+  const stops = [[0,[56,189,248]],[0.4,[74,222,128]],[0.7,[255,149,0]],[1,[248,113,113]]];
+  for (let i = 1; i < stops.length; i++) {
+    if (t <= stops[i][0]) {
+      const [t0,c0] = stops[i-1], [t1,c1] = stops[i], r = (t-t0)/(t1-t0);
+      return `rgb(${Math.round(c0[0]+(c1[0]-c0[0])*r)},${Math.round(c0[1]+(c1[1]-c0[1])*r)},${Math.round(c0[2]+(c1[2]-c0[2])*r)})`;
+    }
+  }
+  return 'rgb(248,113,113)';
+}
+function fmtPace(minKm) {
+  if (!isFinite(minKm) || minKm <= 0) return '–';
+  let m = Math.floor(minKm), s = Math.round((minKm - m) * 60);
+  if (s === 60) { m++; s = 0; }
+  return m + ':' + String(s).padStart(2, '0');
+}
+
+// Courbe d'allure façon Garmin PacePro : profil en gris uni + allure colorée par-dessus.
+// Recalcule l'allure en LIVE selon les curseurs (aperçu) ; le total reste constant.
+function drawPaceChart() {
+  const canvas = document.getElementById('paceChart');
+  if (!canvas || !courseData || !gpxData) return;
+  const cd = computeCourse(courseData.totalMins, config.alpha || resolveAlpha().alpha);
+  const pts = cd.points;
+  const distMax = pts[pts.length - 1].dist;
+  const nKm = Math.max(1, Math.ceil(distMax / 1000));
+
+  // Agrégation de l'allure par km (escalier, comme PacePro)
+  const bins = Array.from({ length: nKm }, () => ({ mins: 0, dist: 0 }));
+  pts.forEach((p, i) => {
+    if (i === 0 || !p.segMins) return;
+    const k = Math.min(nKm - 1, Math.floor(p.dist / 1000));
+    bins[k].mins += p.segMins; bins[k].dist += p.segDist;
+  });
+  const paces = bins.map(b => b.dist > 0 ? b.mins / (b.dist / 1000) : null);
+  const valid = paces.filter(v => v != null);
+  let pFast = Math.min(...valid), pSlow = Math.max(...valid);
+  if (pSlow - pFast < 0.3) { pSlow += 0.3; pFast -= 0.3; } // évite l'aplatissement
+  const span = pSlow - pFast;
+
   const ctx = canvas.getContext('2d');
   canvas.width = canvas.offsetWidth * 2;
-  canvas.height = 240;
+  canvas.height = 300;
   const W = canvas.width, H = canvas.height;
-  const pad = { t: 10, b: 20, l: 40, r: 20 };
-  const steps = 100;
-
+  const pad = { t: 16, b: 30, l: 56, r: 50 };
   ctx.clearRect(0, 0, W, H);
 
-  // Grid
-  ctx.strokeStyle = 'rgba(42,42,48,0.8)';
-  ctx.lineWidth = 1;
-  ['100%','80%','60%'].forEach((lbl, i) => {
-    const y = pad.t + (H - pad.t - pad.b) * i / 2;
-    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
-    ctx.fillStyle = 'rgba(107,107,120,0.8)';
-    ctx.font = '16px DM Sans';
-    ctx.fillText(lbl, 0, y + 5);
-  });
+  const eles = pts.map(p => p.ele);
+  const eMin = Math.min(...eles) - 20, eMax = Math.max(...eles) + 20;
+  const xAt = d => pad.l + (d / distMax) * (W - pad.l - pad.r);
+  const yEle = e => pad.t + (1 - (e - eMin) / (eMax - eMin)) * (H - pad.t - pad.b);
+  // axe allure : rapide (pFast) en HAUT, lent (pSlow) en BAS
+  const yPace = p => pad.t + ((p - pFast) / span) * (H - pad.t - pad.b);
 
-  // Gradient fill
-  const grad = ctx.createLinearGradient(pad.l, 0, W - pad.r, 0);
-  grad.addColorStop(0, 'rgba(74,222,128,0.3)');
-  grad.addColorStop(0.5, 'rgba(255,149,0,0.3)');
-  grad.addColorStop(1, 'rgba(248,113,113,0.3)');
-
-  ctx.fillStyle = grad;
+  // 1) Profil altimétrique en GRIS UNI (les couleurs de terrain sont sur le 1er graphe)
+  ctx.fillStyle = 'rgba(160,160,180,0.18)';
   ctx.beginPath();
   ctx.moveTo(pad.l, H - pad.b);
-  const effTotal = courseData.totalDist / 1000 + (courseData.dpPos || 0) / 100;
-  for (let i = 0; i <= steps; i++) {
-    const ratio = i / steps;
-    const fc = fatigueCoeff(Math.max(1, ratio * effTotal), config.alpha);
-    const x = pad.l + ratio * (W - pad.l - pad.r);
-    const y = pad.t + (1 - (fc - 0.5) / 0.55) * (H - pad.t - pad.b);
-    ctx.lineTo(x, y);
-  }
+  pts.forEach(p => ctx.lineTo(xAt(p.dist), yEle(p.ele)));
   ctx.lineTo(W - pad.r, H - pad.b);
-  ctx.closePath();
-  ctx.fill();
-
-  // Line
-  ctx.strokeStyle = '#e8ff47';
-  ctx.lineWidth = 3;
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(160,160,180,0.45)';
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
-  for (let i = 0; i <= steps; i++) {
-    const ratio = i / steps;
-    const fc = fatigueCoeff(Math.max(1, ratio * effTotal), config.alpha);
-    const x = pad.l + ratio * (W - pad.l - pad.r);
-    const y = pad.t + (1 - (fc - 0.5) / 0.55) * (H - pad.t - pad.b);
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-  }
+  pts.forEach((p, i) => { const x = xAt(p.dist), y = yEle(p.ele); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
   ctx.stroke();
 
-  canvas.style.height = '120px';
+  // 2) Échelle allure (gauche)
+  ctx.font = '16px DM Sans';
+  for (let i = 0; i <= 4; i++) {
+    const pv = pFast + span * i / 4;
+    const y = yPace(pv);
+    ctx.strokeStyle = 'rgba(42,42,48,0.6)';
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+    ctx.fillStyle = 'rgba(107,107,120,0.9)';
+    ctx.fillText(fmtPace(pv), 4, y + 5);
+  }
+
+  // 3) Courbe d'allure colorée en escalier par km
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'butt';
+  for (let k = 0; k < nKm; k++) {
+    if (paces[k] == null) continue;
+    const t = (pSlow - paces[k]) / span; // 1 = rapide
+    const x1 = xAt(k * 1000), x2 = xAt(Math.min((k + 1) * 1000, distMax));
+    const y = yPace(paces[k]);
+    ctx.strokeStyle = paceColor(t);
+    ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke();
+    // raccord vertical entre paliers
+    if (k > 0 && paces[k - 1] != null) {
+      ctx.beginPath(); ctx.moveTo(x1, yPace(paces[k - 1])); ctx.lineTo(x1, y); ctx.stroke();
+    }
+  }
+
+  // 4) Échelle altitude (droite, discrète)
+  ctx.fillStyle = 'rgba(107,107,120,0.7)';
+  ctx.font = '14px DM Sans';
+  ctx.fillText(Math.round(eMax) + 'm', W - pad.r + 4, pad.t + 10);
+  ctx.fillText(Math.round(eMin) + 'm', W - pad.r + 4, H - pad.b);
+
+  // 5) Repères km (bas)
+  ctx.fillStyle = 'rgba(107,107,120,0.8)';
+  ctx.font = '16px DM Sans';
+  const kmStep = Math.max(1, Math.ceil(nKm / 6));
+  for (let km = 0; km <= nKm; km += kmStep) {
+    ctx.fillText(km + 'km', xAt(km * 1000) - 14, H - 6);
+  }
+
+  canvas.style.height = '150px';
 }
 
 // ============================================================
@@ -2858,6 +2976,8 @@ function generer() {
     alpha: prof.alpha,
     fatigueMode: prof.mode,
     label: prof.label,
+    stratSplit: stratSplit(),
+    effortMontee: effortMontee(),
     vef,
     volHebdo,
     meteo: getRadio('rMeteo') || 'tempere',
