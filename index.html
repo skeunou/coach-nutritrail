@@ -1647,6 +1647,7 @@ function renderProfil() {
   document.getElementById('profilContent').innerHTML = html;
 
   // Draw elevation chart
+  _elevHoverFrac = null;
   requestAnimationFrame(() => {
     drawElevChart();
     drawPaceChart();
@@ -1728,7 +1729,94 @@ function drawElevChart() {
     ctx.fillText(km + 'km', x - 15, H - 5);
   }
 
+  // ===== REPÈRE INTERACTIF (survol / touch) : distance + altitude + D+ cumulé =====
+  if (_elevHoverFrac !== null) {
+    const frac = Math.max(0, Math.min(1, _elevHoverFrac));
+    const targetDist = frac * distMax;
+    // point le plus proche en distance
+    let bi = 0;
+    for (let i = 1; i < pts.length; i++) {
+      if (Math.abs(pts[i].dist - targetDist) < Math.abs(pts[bi].dist - targetDist)) bi = i;
+    }
+    const alt = pts[bi].ele;
+    const distKm = pts[bi].dist / 1000;
+    // D+ cumulé jusqu'à ce point (somme des montées × correction) — cohérent avec le tableau
+    let cumDp = 0;
+    for (let i = 1; i <= bi; i++) {
+      const de = pts[i].ele - pts[i-1].ele;
+      if (de > 0) cumDp += de;
+    }
+    cumDp = Math.round(cumDp * DCOEF());
+
+    const xPos = pad.l + (pts[bi].dist / distMax) * (W - pad.l - pad.r);
+    const yPos = pad.t + (1 - (alt - eMin) / (eMax - eMin)) * (H - pad.t - pad.b);
+
+    // ligne verticale repère
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(xPos, pad.t); ctx.lineTo(xPos, H - pad.b); ctx.stroke();
+    // point sur la courbe
+    ctx.beginPath(); ctx.arc(xPos, yPos, 7, 0, Math.PI * 2);
+    ctx.fillStyle = '#e8ff47'; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = '#0d0d0f'; ctx.stroke();
+
+    // bulle d'info
+    const lines = [
+      { t: distKm.toFixed(1) + ' km', c: '#ffffff' },
+      { t: Math.round(alt) + ' m', c: '#ffffff' },
+      { t: 'D+ ' + cumDp + ' m', c: '#ff6b35' },
+    ];
+    ctx.font = 'bold 22px DM Sans';
+    let bw = 0;
+    lines.forEach(l => { bw = Math.max(bw, ctx.measureText(l.t).width); });
+    const padB = 12, lh = 28;
+    const bWidth = bw + padB * 2;
+    const bHeight = lines.length * lh + padB * 2 - 6;
+    let bx = xPos + 16;
+    let by = yPos - bHeight - 16;
+    if (bx + bWidth > W - pad.r) bx = xPos - bWidth - 16;
+    if (bx < pad.l) bx = pad.l + 2;
+    if (by < pad.t) by = yPos + 16;
+    // fond + bordure
+    ctx.fillStyle = '#1c1c20';
+    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(bx, by, bWidth, bHeight, 8); ctx.fill(); }
+    else { ctx.fillRect(bx, by, bWidth, bHeight); }
+    ctx.lineWidth = 1.5; ctx.strokeStyle = '#e8ff47';
+    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(bx, by, bWidth, bHeight, 8); ctx.stroke(); }
+    else { ctx.strokeRect(bx, by, bWidth, bHeight); }
+    // texte
+    ctx.textBaseline = 'top';
+    lines.forEach((l, i) => {
+      ctx.fillStyle = l.c;
+      ctx.fillText(l.t, bx + padB, by + padB + i * lh);
+    });
+    ctx.textBaseline = 'alphabetic';
+  }
+
   canvas.style.height = '180px';
+  _initElevInteraction(canvas);
+}
+
+// État du repère du profil (fraction 0..1 sur l'axe distance, ou null si aucun survol)
+let _elevHoverFrac = null;
+
+// Attache (une seule fois) les écouteurs souris/tactile sur le canvas du profil.
+function _initElevInteraction(canvas) {
+  if (canvas._hoverInit) return;
+  canvas._hoverInit = true;
+  const W = () => canvas.width;
+  const padL = 50, padR = 20;
+  function fracFromClientX(clientX) {
+    const rect = canvas.getBoundingClientRect();
+    const scale = canvas.width / rect.width;            // canvas interne en 2× du CSS
+    const cx = (clientX - rect.left) * scale;
+    return Math.max(0, Math.min(1, (cx - padL) / (canvas.width - padL - padR)));
+  }
+  canvas.addEventListener('mousemove', (e) => { _elevHoverFrac = fracFromClientX(e.clientX); drawElevChart(); });
+  canvas.addEventListener('mouseleave', () => { _elevHoverFrac = null; drawElevChart(); });
+  canvas.addEventListener('touchstart', (e) => { if (e.touches[0]) { _elevHoverFrac = fracFromClientX(e.touches[0].clientX); drawElevChart(); } }, { passive: true });
+  canvas.addEventListener('touchmove', (e) => { if (e.touches[0]) { _elevHoverFrac = fracFromClientX(e.touches[0].clientX); drawElevChart(); } }, { passive: true });
+  canvas.addEventListener('touchend', () => { _elevHoverFrac = null; drawElevChart(); });
 }
 
 // Couleur allure : t=0 lent (bleu) → t=1 rapide (rouge)
