@@ -3251,7 +3251,7 @@ setSalty(true);
 var lvTab="config", lvRestoring=false;
 if(window.LVNAV){
   LVNAV.init({
-    app:"nutrition-race",
+    app:"nutrition-race", sections:"details, .sec",
     snapshot:function(){ return {t:lvTab}; },
     restore:function(s){
       if(!s||!s.t) return;
